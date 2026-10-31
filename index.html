@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <!-- Same policy as the Content-Security-Policy header in vercel.json, for hosts that can't send headers (GitHub Pages). Keep them in sync. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/ https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/ https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/ 'wasm-unsafe-eval'; worker-src blob:; connect-src 'self' blob: data: https://generativelanguage.googleapis.com https://api.openai.com https://api.anthropic.com https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/ https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/ https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/ https://cdn.jsdelivr.net/npm/@tesseract.js-data/; img-src 'self' data: blob:; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; upgrade-insecure-requests">
+  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>ASCEND Schedule Viewer</title>
   <meta name="description" content="Turn your COR or student-portal schedule into a clean, phone-sized schedule image. By ASCEND — Academic Society of Computer Engineering Discipline.">
@@ -68,11 +71,11 @@
 
         <div id="ai-settings">
           <div class="key-row">
-            <input type="password" id="api-key" autocomplete="off" spellcheck="false" placeholder="Paste your API key" aria-label="API key">
+            <input type="password" id="api-key" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="300" placeholder="Paste your API key" aria-label="API key">
             <button type="button" class="btn ghost small" id="btn-show-key" aria-pressed="false">Show</button>
           </div>
           <div class="key-meta">
-            <a id="key-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get a free key</a>
+            <a id="key-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Get a free key</a>
             <label class="check small"><input type="checkbox" id="remember-key"> Remember</label>
             <button type="button" class="link-btn small" id="btn-forget-key" hidden>Forget</button>
           </div>
@@ -80,7 +83,7 @@
             <summary>AI provider: <b id="provider-name">Google Gemini</b></summary>
             <div class="seg" id="provider-seg" role="radiogroup" aria-label="AI provider"></div>
             <label class="f small-f"><span>Model</span>
-              <span class="key-row"><input type="text" id="ai-model" spellcheck="false"><button type="button" class="btn ghost small" id="btn-reset-model">Reset</button></span>
+              <span class="key-row"><input type="text" id="ai-model" spellcheck="false" autocapitalize="off" maxlength="80"><button type="button" class="btn ghost small" id="btn-reset-model">Reset</button></span>
             </label>
           </details>
         </div>
@@ -187,13 +190,13 @@
           </div>
           <div id="notices" class="notices" aria-live="polite"></div>
           <div class="meta-grid">
-            <label class="f"><span>Term</span><input id="meta-term" data-meta="term" list="term-options" placeholder="2nd Term"></label>
-            <label class="f"><span>School year</span><input id="meta-sy" data-meta="schoolYear" placeholder="2026–2027"></label>
+            <label class="f"><span>Term</span><input id="meta-term" data-meta="term" maxlength="30" list="term-options" placeholder="2nd Term"></label>
+            <label class="f"><span>School year</span><input id="meta-sy" data-meta="schoolYear" maxlength="20" placeholder="2026–2027"></label>
           </div>
           <details class="mini-details meta-more">
             <summary>Program &amp; label</summary>
             <div class="meta-grid">
-              <label class="f"><span>Program</span><input id="meta-program" data-meta="program"></label>
+              <label class="f"><span>Program</span><input id="meta-program" data-meta="program" maxlength="60"></label>
               <label class="f"><span>Extra label</span><input id="meta-caption" data-meta="caption" maxlength="40" placeholder="e.g. Block CPE231"></label>
             </div>
           </details>
@@ -295,7 +298,7 @@
     </div>
     <h3>Get a free Gemini key</h3>
     <ol class="steps">
-      <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> and sign in.</li>
+      <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a> and sign in.</li>
       <li>Tap <b>Create API key</b> and copy it.</li>
       <li>Paste it here. Keep it private like a password.</li>
     </ol>
@@ -310,9 +313,10 @@
       <li><b>Hide personal info.</b> Crop out your name, student number, photo, address, birthday, contacts, fees and QR codes. Only the subject table and term are needed.</li>
       <li><b>Offline mode</b> keeps your file on your device.</li>
       <li><b>AI mode</b> sends your images straight to the AI company you pick (Google, OpenAI or Anthropic), using your own key and under their terms.</li>
-      <li><b>Your key</b> stays in this tab unless you tick <i>Remember</i>, which saves it in this browser only. Tap <i>Forget</i> to remove it.</li>
+      <li><b>Your key</b> stays in this tab unless you tick <i>Remember</i>, which saves it in this browser only. Tap <i>Forget</i> to remove it. Don't tick <i>Remember</i> on a shared or school computer.</li>
       <li><b>Closing or refreshing</b> the page clears your schedule. Downloads are saved only where you choose.</li>
-      <li><b>Fonts and readers</b> load from public CDNs (Google Fonts, cdnjs, jsDelivr). They never receive your files.</li>
+      <li><b>Fonts and readers</b> load from public CDNs (Google Fonts, cdnjs, jsDelivr). They never receive your files, and the readers are checked against fixed fingerprints before they run.</li>
+      <li><b>Locked down.</b> The page may only talk to the services listed here, refuses to run inside other sites, and checks every file before reading it.</li>
     </ul>
     <button type="button" class="btn primary full" data-close>Got it</button>
   </dialog>

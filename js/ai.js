@@ -10,6 +10,8 @@
       defaultModel: 'gemini-flash-latest',
       keyUrl: 'https://aistudio.google.com/apikey',
       keyHint: 'Starts with "AIza…". Free from Google AI Studio.',
+      keyPattern: /^AIza[\w-]{20,}$/,
+      keyShape: 'Gemini keys start with “AIza”',
     },
     openai: {
       label: 'OpenAI (ChatGPT)',
@@ -17,6 +19,8 @@
       defaultModel: 'gpt-5-mini',
       keyUrl: 'https://platform.openai.com/api-keys',
       keyHint: 'Starts with "sk-…". Needs API credits (separate from ChatGPT Plus).',
+      keyPattern: /^sk-(?!ant-)[\w-]{20,}$/,
+      keyShape: 'OpenAI keys start with “sk-”',
     },
     anthropic: {
       label: 'Anthropic Claude',
@@ -24,6 +28,8 @@
       defaultModel: 'claude-opus-5-5',
       keyUrl: 'https://console.anthropic.com/settings/keys',
       keyHint: 'Starts with "sk-ant-…". Needs API credits.',
+      keyPattern: /^sk-ant-[\w-]{20,}$/,
+      keyShape: 'Claude keys start with “sk-ant-”',
     },
   };
 
@@ -116,18 +122,38 @@ Rules:
     return new AIError(`${name} error ${res.status}: ${detail || res.statusText}`, res.status);
   }
 
+  /** Format check only (never sent anywhere): catches a key pasted under the wrong provider. */
+  function keyLooksRight(provider, key) {
+    const p = PROVIDERS[provider];
+    return !p || !key || p.keyPattern.test(key);
+  }
+
+  // Every request: no cookies, no referrer, no caching, and a time limit so a stuck request can't hang the app.
+  const TIMEOUT_MS = 180000;
+  async function post(url, headers, body) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+    try {
+      return await fetch(url, {
+        method: 'POST', headers, body: JSON.stringify(body), signal: ctl.signal,
+        credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store',
+      });
+    } catch (e) {
+      if (e.name === 'AbortError') throw new AIError('The AI took too long to answer. Try again, or upload fewer images.');
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function callGemini(key, model, images) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({
-        contents: [{
-          role: 'user',
-          parts: [{ text: PROMPT }].concat(images.map((im) => ({ inline_data: { mime_type: im.mime, data: im.b64 } }))),
-        }],
-        generationConfig: { responseMimeType: 'application/json', temperature: 0 },
-      }),
+    const res = await post(url, { 'Content-Type': 'application/json', 'x-goog-api-key': key }, {
+      contents: [{
+        role: 'user',
+        parts: [{ text: PROMPT }].concat(images.map((im) => ({ inline_data: { mime_type: im.mime, data: im.b64 } }))),
+      }],
+      generationConfig: { responseMimeType: 'application/json', temperature: 0 },
     });
     if (!res.ok) throw await readError(res, 'gemini');
     const j = await res.json();
@@ -140,17 +166,13 @@ Rules:
   }
 
   async function callOpenAI(key, model, images) {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-      body: JSON.stringify({
-        model,
-        response_format: { type: 'json_object' },
-        messages: [{
-          role: 'user',
-          content: [{ type: 'text', text: PROMPT }].concat(images.map((im) => ({ type: 'image_url', image_url: { url: im.dataUrl, detail: 'high' } }))),
-        }],
-      }),
+    const res = await post('https://api.openai.com/v1/chat/completions', { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, {
+      model,
+      response_format: { type: 'json_object' },
+      messages: [{
+        role: 'user',
+        content: [{ type: 'text', text: PROMPT }].concat(images.map((im) => ({ type: 'image_url', image_url: { url: im.dataUrl, detail: 'high' } }))),
+      }],
     });
     if (!res.ok) throw await readError(res, 'openai');
     const j = await res.json();
@@ -184,7 +206,7 @@ Rules:
       headers['anthropic-beta'] = 'server-side-fallback-2026-07-01';
       body.fallbacks = 'default';
     }
-    const res = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers, body: JSON.stringify(body) });
+    const res = await post('https://api.anthropic.com/v1/messages', headers, body);
     if (!res.ok) throw await readError(res, 'anthropic');
     const j = await res.json();
     if (j.stop_reason === 'refusal') throw new AIError('Claude declined to read this image. Try Offline mode or another provider.');
@@ -204,12 +226,15 @@ Rules:
       else text = await callAnthropic(key, model, images);
     } catch (e) {
       if (e instanceof AIError) throw e;
-      // fetch() network/CORS failures land here
-      throw new AIError(`Couldn't reach ${PROVIDERS[provider].label}. Check your internet connection (and that no ad-blocker is blocking it), then try again.`);
+      // fetch() network/CORS failures land here. OpenAI answers a wrong key without CORS headers,
+      // so in the browser a bad OpenAI key looks exactly like a network failure.
+      const name = PROVIDERS[provider].label;
+      if (provider === 'openai') throw new AIError(`Couldn't get an answer from ${name}. This usually means the API key is wrong or has no credits. If the key is right, check your internet connection or ad-blocker.`);
+      throw new AIError(`Couldn't reach ${name}. Check your internet connection (and that no ad-blocker is blocking it), then try again.`);
     }
     const json = root.SVParser.extractJSON(text);
     return root.SVParser.fromAI(json);
   }
 
-  root.SVAI = { PROVIDERS, extract, AIError };
+  root.SVAI = { PROVIDERS, extract, keyLooksRight, AIError };
 })(window);

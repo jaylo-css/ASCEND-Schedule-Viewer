@@ -118,6 +118,7 @@ input:focus, select:focus { outline: none; border-color: var(--focus); box-shado
 .key-row { display: flex; gap: 8px; }
 .key-meta { display: flex; align-items: center; gap: 14px; margin-top: 8px; font-size: 13.5px; }
 .key-meta .check { margin-left: auto; }
+.key-meta a { display: inline-block; padding: 4px 0; }
 .check { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14.5px; }
 .check.small { font-size: 13.5px; color: var(--text-2); }
 .check input { width: 18px; height: 18px; accent-color: var(--blue); flex: none; }
@@ -207,6 +208,8 @@ input:focus, select:focus { outline: none; border-color: var(--focus); box-shado
 .subj { border: 1px solid var(--border); border-radius: 14px; background: var(--card); overflow: hidden; }
 .subj-head { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px; border: 0; background: none; text-align: left; cursor: pointer; }
 .subj-head:hover { background: var(--field); }
+.err-msg { margin: 0 0 6px; }
+.framed { padding: 24px; text-align: center; }
 .subj-dot { width: 12px; align-self: stretch; border-radius: 6px; flex: none; }
 .subj-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .subj-name { font-weight: 800; font-size: 15.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

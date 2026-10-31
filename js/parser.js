@@ -601,24 +601,27 @@
 
   /* -------------------------------------------------- AI output normalize */
 
+  // The AI's reply is untrusted: keep only objects, cap how many, and cap every string's length.
   function fromAI(json) {
-    const subjects = (json && Array.isArray(json.subjects) ? json.subjects : []).map((s) => ({
-      code: String(s.code || '').trim().toUpperCase(),
-      description: String(s.description || '').trim(),
-      short: String(s.short_name || '').trim(),
-      section: String(s.section || '').trim().toUpperCase(),
-      instructor: String(s.instructor_last_name || s.instructor || '').trim(),
-      units: String(s.units || '').trim(),
-      meetings: (Array.isArray(s.meetings) ? s.meetings : []).map((mt) => {
-        const start = parseHHMM(mt.start), end = parseHHMM(mt.end);
-        return { day: normDay(mt.day), start, end, room: String(mt.room || '').trim() };
+    const objs = (a, max) => (Array.isArray(a) ? a : []).filter((x) => x && typeof x === 'object').slice(0, max);
+    const str = (v, max) => (v == null || typeof v === 'object' ? '' : String(v)).trim().slice(0, max || 120);
+    const subjects = objs(json && json.subjects, 40).map((s) => ({
+      code: str(s.code, 20).toUpperCase(),
+      description: str(s.description),
+      short: str(s.short_name, 40),
+      section: str(s.section, 20).toUpperCase(),
+      instructor: str(s.instructor_last_name || s.instructor),
+      units: str(s.units, 6),
+      meetings: objs(s.meetings, 20).map((mt) => {
+        const start = parseHHMM(str(mt.start, 12)), end = parseHHMM(str(mt.end, 12));
+        return { day: normDay(str(mt.day, 12)), start, end, room: str(mt.room, 40) };
       }).filter((mt) => mt.start != null && mt.end != null && mt.end > mt.start),
     })).filter((s) => s.code || s.description);
     const meta = { term: '', schoolYear: '' };
-    if (json && json.term) meta.term = String(json.term).trim();
+    if (json && json.term) meta.term = str(json.term, 30);
     if (json && json.school_year) {
-      const sy = String(json.school_year).match(/(20\d{2})\s*[-–—\/]\s*(20\d{2})/);
-      meta.schoolYear = sy ? sy[1] + '–' + sy[2] : String(json.school_year).trim();
+      const sy = str(json.school_year, 30).match(/(20\d{2})\s*[-–—\/]\s*(20\d{2})/);
+      meta.schoolYear = sy ? sy[1] + '–' + sy[2] : str(json.school_year, 20);
     }
     return { subjects: mergeSubjects(subjects), meta };
   }

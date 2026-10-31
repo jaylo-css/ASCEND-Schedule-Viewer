@@ -2,37 +2,94 @@
 (function (root) {
   'use strict';
 
-  const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-  const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  const TESSERACT_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+  // Third-party code is pinned to exact versions and checked against these hashes (Subresource Integrity),
+  // so a tampered CDN file is refused instead of run. When upgrading, recompute with:
+  //   curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A
+  const PDFJS = { url: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', sri: 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e' };
+  const PDFJS_WORKER = { url: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js', sri: 'sha384-SnzOobpRMLXZ52iJvZm/C0fYw0OQemTXzTjIsdsfMcrCtCEe9qgzxTd3RSklO5x2' };
+  const TESSERACT = { url: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js', sri: 'sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F' };
+  const TESSERACT_WORKER = { url: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js', sri: 'sha384-zxn+VqofFzXpH99dUb3fa4ywoSBQJPy6/6oEaJHPlblZXr53a0g1Jl6720vgSzB7' };
+  const TESSERACT_CORE = 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1';
   const MAX_PDF_PAGES = 3;
+  const MAX_FILE_MB = 25;
+  const MAX_PIXELS = 60e6; // ~60 megapixels; bigger images could freeze or crash a phone
+  const MAX_SIDE = 12000;
+  const DOWNLOAD_ERR = 'Could not download a required component. Check your internet connection.';
 
   const loaded = {};
-  function loadScript(url) {
-    if (!loaded[url]) {
-      loaded[url] = new Promise((resolve, reject) => {
+  function loadScript(lib) {
+    if (!loaded[lib.url]) {
+      loaded[lib.url] = new Promise((resolve, reject) => {
         const s = document.createElement('script');
-        s.src = url; s.async = true; s.crossOrigin = 'anonymous';
+        s.src = lib.url; s.async = true; s.crossOrigin = 'anonymous'; s.integrity = lib.sri;
+        s.referrerPolicy = 'no-referrer';
         s.onload = resolve;
-        s.onerror = () => { delete loaded[url]; reject(new Error('Could not download a required component. Check your internet connection.')); };
+        s.onerror = () => { delete loaded[lib.url]; s.remove(); reject(new Error(DOWNLOAD_ERR)); };
         document.head.appendChild(s);
       });
     }
-    return loaded[url];
+    return loaded[lib.url];
+  }
+
+  // Workers start from a URL, which can't carry an integrity hash. Download the worker with the hash
+  // checked, then start it from a local blob: URL of the verified copy.
+  const blobUrls = {};
+  function verifiedBlobUrl(lib) {
+    if (!blobUrls[lib.url]) {
+      blobUrls[lib.url] = (async () => {
+        let res;
+        try { res = await fetch(lib.url, { integrity: lib.sri, mode: 'cors', credentials: 'omit', referrerPolicy: 'no-referrer' }); }
+        catch (e) { throw new Error(DOWNLOAD_ERR); }
+        if (!res.ok) throw new Error(DOWNLOAD_ERR);
+        return URL.createObjectURL(new Blob([await res.text()], { type: 'text/javascript' }));
+      })();
+      blobUrls[lib.url].catch(() => { delete blobUrls[lib.url]; });
+    }
+    return blobUrls[lib.url];
   }
 
   async function pdfjs() {
-    await loadScript(PDFJS_URL);
-    root.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+    await loadScript(PDFJS);
+    root.pdfjsLib.GlobalWorkerOptions.workerSrc = await verifiedBlobUrl(PDFJS_WORKER);
     return root.pdfjsLib;
   }
 
-  function isPdf(file) { return file.type === 'application/pdf' || /\.pdf$/i.test(file.name); }
+  const fileKinds = new WeakMap(); // file -> 'pdf' | 'image', from inspectFile()
+  function isPdf(file) { return fileKinds.has(file) ? fileKinds.get(file) === 'pdf' : file.type === 'application/pdf' || /\.pdf$/i.test(file.name); }
+
+  /**
+   * Check a file before it's used: size, and its real type from the first bytes (not the name or
+   * the type the browser guessed). Returns { kind: 'pdf' | 'image' } or { error }.
+   */
+  async function inspectFile(file) {
+    const r = await sniff(file);
+    if (r.kind) fileKinds.set(file, r.kind);
+    return r;
+  }
+  async function sniff(file) {
+    if (!file || !file.size) return { error: `“${file && file.name}” is empty.` };
+    if (file.size > MAX_FILE_MB * 1024 * 1024) return { error: `“${file.name}” is too large (over ${MAX_FILE_MB} MB).` };
+    const b = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+    const ascii = (from, to) => String.fromCharCode.apply(null, b.subarray(from, to));
+    if (ascii(0, 5) === '%PDF-') return { kind: 'pdf' };
+    if (b[0] === 0x89 && ascii(1, 4) === 'PNG') return { kind: 'image' };
+    if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return { kind: 'image' };
+    if (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return { kind: 'image' };
+    if (ascii(0, 4) === 'GIF8' || ascii(0, 2) === 'BM') return { kind: 'image' };
+    if (ascii(4, 8) === 'ftyp' && /^(heic|heix|hevc|mif1|msf1|avif)/.test(ascii(8, 12))) {
+      return { error: `“${file.name}” is a HEIC/AVIF photo. Take a screenshot instead (PNG), or export it as JPG.` };
+    }
+    return { error: `“${file.name}” isn't a supported image or PDF.` };
+  }
 
   function loadImage(src) {
     return new Promise((resolve, reject) => {
       const img = new Image();
-      img.onload = () => resolve(img);
+      img.onload = () => {
+        const w = img.naturalWidth, h = img.naturalHeight;
+        if (w * h > MAX_PIXELS || Math.max(w, h) > MAX_SIDE) reject(new Error('This image is too large. Use a normal screenshot instead.'));
+        else resolve(img);
+      };
       img.onerror = () => reject(new Error('This image could not be opened. Try PNG or JPG.'));
       img.src = src;
     });
@@ -62,7 +119,8 @@
     for (let n = 1; n <= Math.min(pdf.numPages, MAX_PDF_PAGES); n++) {
       const page = await pdf.getPage(n);
       const base = page.getViewport({ scale: 1 });
-      const vp = page.getViewport({ scale: targetWidth / base.width });
+      // Very tall pages (odd PDFs) are capped so the canvas stays a safe size.
+      const vp = page.getViewport({ scale: Math.min(targetWidth / base.width, (targetWidth * 3) / base.height) });
       const c = document.createElement('canvas');
       c.width = Math.round(vp.width); c.height = Math.round(vp.height);
       const ctx = c.getContext('2d');
@@ -140,9 +198,13 @@
   let worker = null;
   let progressHandler = null; // the worker is reused, so its logger forwards to whoever is scanning now
   async function ocrWorker() {
-    await loadScript(TESSERACT_URL);
+    await loadScript(TESSERACT);
     if (!worker) {
       worker = await root.Tesseract.createWorker('eng', 1, {
+        // Hash-checked worker (as for pdf.js) and the OCR engine pinned to the exact version the CSP allows.
+        workerPath: await verifiedBlobUrl(TESSERACT_WORKER),
+        workerBlobURL: false,
+        corePath: TESSERACT_CORE,
         logger: (m) => { if (progressHandler && m.status === 'recognizing text') progressHandler(m.progress); },
       });
       await worker.setParameters({ preserve_interword_spaces: '1' });
@@ -256,5 +318,5 @@
     return { subjects: P.mergeSubjects(all), meta, kinds };
   }
 
-  root.SVExtract = { isPdf, thumbnail, filesForAI, offline, loadScript };
+  root.SVExtract = { isPdf, inspectFile, thumbnail, filesForAI, offline, loadScript };
 })(window);

@@ -37,9 +37,25 @@ It's a **static website**: plain HTML, CSS, and JavaScript with no server, no da
 - API keys stay in memory unless the student ticks *Remember on this device*, which saves the key in that browser's `localStorage`. *Forget key* removes it.
 - Fonts (Google Fonts), the PDF reader (cdnjs), and the OCR engine (jsDelivr) are loaded from public CDNs. They never receive student files.
 
+## Security
+
+- **Content Security Policy.** The page can only load code from itself and the pinned pdf.js / Tesseract.js paths. It can only connect to those CDNs and the three AI APIs. Inline scripts and styles, plugins, forms, and framing are all blocked.
+  - The policy is sent as a header by `vercel.json` and repeated in a `<meta>` tag in `index.html` for GitHub Pages. **Keep the two in sync.**
+- **Subresource Integrity.** pdf.js and Tesseract.js are pinned to exact versions and checked against SHA-384 hashes. Their web workers are downloaded with the hash checked and started from a local `blob:` copy. A tampered CDN file is refused.
+  - To upgrade, recompute the hashes in `js/extract.js` (the command is in the comment there) and update both CSP copies.
+- **Other headers (Vercel):** `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `nosniff`, `Referrer-Policy: no-referrer`, HSTS, COOP/CORP, and a `Permissions-Policy` that turns off the camera, microphone, location and other device APIs. A script check also refuses to run inside a frame on hosts without headers.
+- **Untrusted input is validated:**
+  - **Uploads:** checked by their first bytes, not the file name. Limits are 25 MB per file, 60 MP per image, and 3 PDF pages.
+  - **Imported `.json` files and saved preferences:** only known keys are copied, with type and range checks and length limits (no prototype tricks).
+  - **AI replies:** treated as data. Arrays are capped, strings are clipped, and everything is escaped before it reaches the page.
+- **API requests** send no cookies and no referrer, aren't cached, and time out after 3 minutes. Keys go in headers, never in URLs.
+- **Text fields** have length limits, and all user text is HTML-escaped when shown.
+
 **If you host this, keep it that way.** Don't add analytics, trackers, or form back-ends, or the privacy notice on the page stops being true.
 
 ## Hosting (pick one)
+
+**Vercel:** import the GitHub repository at vercel.com/new (framework preset: *Other*, no build command, output directory: the root), or run `npx vercel --prod` in this folder. `vercel.json` adds the security headers.
 
 **GitHub Pages:** push this folder to a GitHub repository, then go to *Settings → Pages → Deploy from branch → main / root*. The site will be at `https://<user>.github.io/<repo>/`.
 
@@ -60,6 +76,7 @@ It's a **static website**: plain HTML, CSS, and JavaScript with no server, no da
 | `js/app.js` | UI controller: upload, settings, editor, notices, download/share, save/open. |
 | `js/logo-data.js` | The logo badge embedded as a data URL, so image export works even from `file://`. |
 | `assets/` | Logo badge, icons, and the original logo. |
+| `vercel.json` | Vercel settings: the security headers (CSP and others). |
 
 ## Common maintenance
 

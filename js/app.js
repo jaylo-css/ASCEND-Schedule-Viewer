@@ -26,11 +26,34 @@
     wallpaper: false, collapse: true, showTime: true, showCode: false, showSection: false, h24: false, fontScale: 1,
   };
   const prefs = { mode: 'ai', provider: 'gemini', models: {}, opts: Object.assign({}, DEFAULT_OPTS) };
+
+  // Saved preferences and opened .json files are untrusted input: copy only known keys, with the
+  // right types and ranges, and limit text length.
+  const own = (o, k) => !!o && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k);
+  const cleanStr = (v, max) => String(v == null || typeof v === 'object' ? '' : v).replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, max);
+  const LIMITS = { code: 20, description: 120, short: 40, section: 20, prof: 60, units: 6, room: 40, program: 60, term: 30, schoolYear: 20, caption: 40, model: 80 };
+  const MAX_SUBJECTS = 30, MAX_MEETINGS = 14;
+  function cleanOpts(o) {
+    const out = Object.assign({}, DEFAULT_OPTS);
+    if (!o || typeof o !== 'object') return out;
+    if (['grid', 'list'].includes(o.layout)) out.layout = o.layout;
+    if (own(R.THEMES, o.theme)) out.theme = o.theme;
+    if (typeof o.size === 'string' && /^(device|custom|\d{3,4}x\d{3,4})$/.test(o.size)) out.size = o.size;
+    if (out.size === 'device' && !isPhone) out.size = DEFAULT_OPTS.size;
+    ['customW', 'customH'].forEach((k) => { if (Number.isFinite(+o[k])) out[k] = Math.min(6000, Math.max(400, Math.round(+o[k]))); });
+    ['wallpaper', 'collapse', 'showTime', 'showCode', 'showSection', 'h24'].forEach((k) => { if (typeof o[k] === 'boolean') out[k] = o[k]; });
+    if (Number.isFinite(+o.fontScale)) out.fontScale = Math.min(1.5, Math.max(0.7, +o.fontScale));
+    return out;
+  }
   try {
     const saved = JSON.parse(store.get(PREFS_KEY) || 'null');
-    if (saved) {
-      Object.assign(prefs, saved, { opts: Object.assign({}, DEFAULT_OPTS, saved.opts || {}) });
-      if (prefs.opts.size === 'device' && !isPhone) prefs.opts.size = DEFAULT_OPTS.size;
+    if (saved && typeof saved === 'object') {
+      if (['ai', 'offline'].includes(saved.mode)) prefs.mode = saved.mode;
+      if (own(AI.PROVIDERS, saved.provider)) prefs.provider = saved.provider;
+      Object.keys(AI.PROVIDERS).forEach((id) => {
+        if (own(saved.models, id) && typeof saved.models[id] === 'string') prefs.models[id] = cleanStr(saved.models[id], LIMITS.model).trim();
+      });
+      prefs.opts = cleanOpts(saved.opts);
     }
   } catch (e) { /* ignore bad prefs */ }
   const savePrefs = () => store.set(PREFS_KEY, JSON.stringify(prefs));
@@ -267,11 +290,12 @@
   const fileInput = $('#file-input');
   const dz = $('#dropzone');
 
-  function addFiles(list) {
+  async function addFiles(list) {
     const all = Array.from(list || []);
-    const ok = all.filter((f) => /^image\//.test(f.type) || X.isPdf(f));
-    if (ok.length < all.length) toast('Only images (PNG, JPG, WEBP) and PDFs are supported.');
-    for (const f of ok) {
+    const checked = await Promise.all(all.map((f) => X.inspectFile(f).catch(() => ({ error: `“${f.name}” could not be read.` }))));
+    const bad = checked.find((r) => r.error);
+    if (bad) toast(bad.error, 5000);
+    for (const f of all.filter((f, i) => !checked[i].error)) {
       if (state.files.length >= MAX_FILES) { toast(`You can upload up to ${MAX_FILES} files.`); break; }
       const item = { id: uid(), file: f, thumb: null };
       state.files.push(item);
@@ -343,7 +367,7 @@
   $('#provider-seg').addEventListener('click', (e) => { const b = e.target.closest('[data-prov]'); if (b) setProvider(b.dataset.prov); });
 
   $('#api-key').addEventListener('input', (e) => {
-    const v = e.target.value.trim();
+    const v = e.target.value.trim().replace(/^["'`]+|["'`]+$/g, '');
     state.keys[prefs.provider] = v;
     if ($('#remember-key').checked) { if (v) store.set(KEY_PREFIX + prefs.provider, v); else store.del(KEY_PREFIX + prefs.provider); }
     updateReadButton();
@@ -375,12 +399,15 @@
   });
 
   function updateReadButton() {
-    let msg = '';
+    let msg = '', note = '';
+    const key = state.keys[prefs.provider];
     if (!state.files.length) msg = 'Upload a file first.';
-    else if (prefs.mode === 'ai' && !state.keys[prefs.provider]) msg = 'Paste your API key, or switch to Offline.';
+    else if (prefs.mode === 'ai' && !key) msg = 'Paste your API key, or switch to Offline.';
+    // A warning only — key formats can change, so a key that looks odd can still be tried.
+    if (!msg && prefs.mode === 'ai' && !AI.keyLooksRight(prefs.provider, key)) note = `This doesn't look like the right key. ${AI.PROVIDERS[prefs.provider].keyShape}.`;
     $('#btn-read').disabled = !!msg || state.busy;
-    $('#read-hint').textContent = state.busy ? '' : msg;
-    $('#read-hint').hidden = !msg || state.busy;
+    $('#read-hint').textContent = state.busy ? '' : msg || note;
+    $('#read-hint').hidden = !(msg || note) || state.busy;
   }
 
   /* -------------------------------------------------------------- read */
@@ -398,7 +425,7 @@
     if (actions.offline) btns.push('<button type="button" class="link-btn" data-err="offline">Try Offline</button>');
     if (actions.ai) btns.push('<button type="button" class="link-btn" data-err="ai">Try AI mode</button>');
     btns.push('<button type="button" class="link-btn" data-err="manual">Type it in</button>');
-    box.innerHTML = `<p style="margin:0 0 6px">${esc(msg)}</p>${btns.join(' · ')}`;
+    box.innerHTML = `<p class="err-msg">${esc(msg)}</p>${btns.join(' · ')}`;
     box.hidden = false;
   }
   $('#read-error').addEventListener('click', (e) => {
@@ -467,25 +494,28 @@
   }
 
   function buildData(result) {
-    const shorts = P.shortNames(result.subjects.map((s) => s.description || s.code));
-    const subjects = result.subjects.map((s, i) => {
-      const aiShort = (s.short || '').trim();
+    // AI and OCR output is clipped to sane lengths before it reaches the editor and the image.
+    const list = result.subjects.slice(0, MAX_SUBJECTS);
+    const shorts = P.shortNames(list.map((s) => cleanStr(s.description || s.code, LIMITS.description)));
+    const subjects = list.map((s, i) => {
+      const aiShort = cleanStr(s.short, LIMITS.short).trim();
       return {
         id: uid(),
-        code: s.code || '',
-        description: s.description || '',
+        code: cleanStr(s.code, LIMITS.code),
+        description: cleanStr(s.description, LIMITS.description),
         short: aiShort && aiShort.length <= 30 ? aiShort : shorts[i],
         shortAuto: true,
-        section: s.section || '',
-        prof: P.lastName(s.instructor || ''),
+        section: cleanStr(s.section, LIMITS.section),
+        prof: cleanStr(P.lastName(cleanStr(s.instructor, 120)), LIMITS.prof),
         color: R.PALETTE[i % R.PALETTE.length],
-        units: s.units || '',
-        meetings: (s.meetings && s.meetings.length ? s.meetings : [{}]).map(newMeeting),
+        units: cleanStr(s.units, LIMITS.units),
+        meetings: (s.meetings && s.meetings.length ? s.meetings.slice(0, MAX_MEETINGS) : [{}])
+          .map((m) => newMeeting(Object.assign({}, m, { room: cleanStr(m.room, LIMITS.room) }))),
       };
     });
     state.syGuessed = !result.meta.schoolYear;
     return {
-      meta: { program: DEFAULT_PROGRAM, term: result.meta.term || '', schoolYear: result.meta.schoolYear || guessSchoolYear(), caption: '' },
+      meta: { program: DEFAULT_PROGRAM, term: cleanStr(result.meta.term, LIMITS.term), schoolYear: cleanStr(result.meta.schoolYear, LIMITS.schoolYear) || guessSchoolYear(), caption: '' },
       subjects,
     };
   }
@@ -563,7 +593,7 @@
     tags.push(s.prof ? `<span class="tagx">${esc(s.prof)}</span>` : '<span class="tagx warn">No professor</span>');
     if (!s.meetings.length || !s.meetings.every(meetingOk)) tags.push('<span class="tagx warn">Check time</span>');
     return `
-      <span class="subj-dot" style="background:${esc(s.color)}"></span>
+      <span class="subj-dot" data-color="${esc(s.color)}"></span>
       <span class="subj-info">
         <span class="subj-name">${esc(s.short || s.code || 'New subject')}</span>
         <span class="subj-meta">${esc(when)}</span>
@@ -581,7 +611,7 @@
         </select>
         <input type="time" data-mf="start" value="${timeVal(mt.start)}" step="300" aria-label="Start time">
         <input type="time" data-mf="end" value="${timeVal(mt.end)}" step="300" aria-label="End time">
-        <input class="mt-room" data-mf="room" value="${esc(mt.room)}" placeholder="Room" aria-label="Room">
+        <input class="mt-room" data-mf="room" maxlength="40" value="${esc(mt.room)}" placeholder="Room" aria-label="Room">
         <div class="mt-row-end">
           <select data-mf="mode" aria-label="Face-to-face or online">
             <option value="f2f"${mt.mode === 'f2f' ? ' selected' : ''}>Face-to-face</option>
@@ -603,7 +633,7 @@
             <label class="f"><span>Name on image</span><input class="in-short" data-f="short" value="${esc(s.short)}" placeholder="Short name" maxlength="40"></label>
           </div>
           <div class="subj-fields">
-            <label class="f wide"><span>Professor (last name)</span><input data-f="prof" value="${esc(s.prof)}" class="${s.prof ? '' : 'missing'}" placeholder="Not assigned yet"></label>
+            <label class="f wide"><span>Professor (last name)</span><input data-f="prof" maxlength="60" value="${esc(s.prof)}" class="${s.prof ? '' : 'missing'}" placeholder="Not assigned yet"></label>
           </div>
           <div class="meetings">
             ${s.meetings.map(meetingHTML).join('')}
@@ -611,9 +641,9 @@
           <details class="mini-details">
             <summary>Full title, code &amp; section</summary>
             <div class="subj-fields">
-              <label class="f wide"><span>Full title</span><input data-f="description" value="${esc(s.description)}" placeholder="e.g. SOFTWARE DESIGN - LAB"></label>
-              <label class="f"><span>Code</span><input data-f="code" value="${esc(s.code)}" placeholder="CPSOFT1L"></label>
-              <label class="f"><span>Section</span><input data-f="section" value="${esc(s.section)}" placeholder="CPE231"></label>
+              <label class="f wide"><span>Full title</span><input data-f="description" maxlength="120" value="${esc(s.description)}" placeholder="e.g. SOFTWARE DESIGN - LAB"></label>
+              <label class="f"><span>Code</span><input data-f="code" maxlength="20" value="${esc(s.code)}" placeholder="CPSOFT1L"></label>
+              <label class="f"><span>Section</span><input data-f="section" maxlength="20" value="${esc(s.section)}" placeholder="CPE231"></label>
             </div>
           </details>
           <div class="subj-actions">
@@ -631,9 +661,12 @@
   function renderSubjects() {
     $('#subjects').innerHTML = state.data.subjects.map(subjectHTML).join('') ||
       '<p class="hint center">No subjects yet. Add one below.</p>';
+    paintDots($('#subjects'));
   }
 
-  function refreshSummary(card, s) { $('.subj-head', card).innerHTML = summaryHTML(s); }
+  function refreshSummary(card, s) { $('.subj-head', card).innerHTML = summaryHTML(s); paintDots(card); }
+  // Colours are set through the DOM, not inline style="" markup, so the CSP can block inline styles.
+  function paintDots(root) { $$('.subj-dot[data-color]', root).forEach((el) => { el.style.background = el.dataset.color; }); }
 
   function findSubj(el) {
     const card = el.closest('[data-sid]');
@@ -860,19 +893,26 @@
     e.target.value = '';
     if (!f) return;
     try {
+      if (f.size > 1024 * 1024) throw new Error('too big');
       const j = JSON.parse(await f.text());
       if (!j || j.app !== 'ascend-schedule-viewer' || !Array.isArray(j.subjects)) throw new Error('bad');
       state.syGuessed = false;
+      const obj = (v) => (v && typeof v === 'object' ? v : {});
+      const meta = obj(j.meta);
+      const str = (o, k) => cleanStr(own(o, k) ? o[k] : '', LIMITS[k]);
       const data = {
-        meta: Object.assign({ program: DEFAULT_PROGRAM, term: '', schoolYear: '', caption: '' }, j.meta || {}),
-        subjects: j.subjects.map((s, i) => ({
-          id: uid(), code: String(s.code || ''), description: String(s.description || ''), short: String(s.short || ''), shortAuto: false,
-          section: String(s.section || ''), prof: String(s.prof || ''), units: String(s.units || ''),
-          color: /^#[0-9a-f]{6}$/i.test(s.color || '') ? s.color : R.PALETTE[i % R.PALETTE.length],
-          meetings: (s.meetings || []).map((m) => newMeeting({ day: P.normDay(m.day), start: P.parseHHMM(m.start), end: P.parseHHMM(m.end), room: String(m.room || ''), mode: m.mode === 'online' ? 'online' : m.mode === 'f2f' ? 'f2f' : '' })),
+        meta: { program: str(meta, 'program') || DEFAULT_PROGRAM, term: str(meta, 'term'), schoolYear: str(meta, 'schoolYear'), caption: str(meta, 'caption') },
+        subjects: j.subjects.filter((s) => s && typeof s === 'object').slice(0, MAX_SUBJECTS).map((s, i) => ({
+          id: uid(), code: str(s, 'code'), description: str(s, 'description'), short: str(s, 'short'), shortAuto: false,
+          section: str(s, 'section'), prof: str(s, 'prof'), units: str(s, 'units'),
+          color: /^#[0-9a-f]{6}$/i.test(String(s.color || '')) ? s.color : R.PALETTE[i % R.PALETTE.length],
+          meetings: (Array.isArray(s.meetings) ? s.meetings : []).filter((m) => m && typeof m === 'object').slice(0, MAX_MEETINGS).map((m) => newMeeting({
+            day: P.normDay(String(m.day || '')), start: P.parseHHMM(String(m.start || '')), end: P.parseHHMM(String(m.end || '')),
+            room: str(m, 'room'), mode: m.mode === 'online' ? 'online' : m.mode === 'f2f' ? 'f2f' : '',
+          })),
         })),
       };
-      if (j.options) { Object.assign(prefs.opts, j.options); if (prefs.opts.size === 'device' && !isPhone) prefs.opts.size = DEFAULT_OPTS.size; savePrefs(); syncOptionControls(); }
+      if (j.options) { Object.assign(prefs.opts, cleanOpts(j.options)); savePrefs(); syncOptionControls(); }
       loadData(data, 'import');
       toast('Schedule opened.');
     } catch (err) {
@@ -896,6 +936,11 @@
   });
 
   /* -------------------------------------------------------------- init */
+  // Refuse to run inside another site's frame (clickjacking). Vercel also blocks this with headers.
+  if (window.top !== window.self) {
+    document.body.innerHTML = '<p class="framed">Open the ASCEND Schedule Viewer in its own tab.</p>';
+    return;
+  }
   renderProviders();
   setProvider(prefs.provider);
   setMode(prefs.mode);
