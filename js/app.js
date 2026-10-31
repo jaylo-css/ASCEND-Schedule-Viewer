@@ -309,7 +309,7 @@
     $('#file-list').innerHTML = state.files.map((it) => `
       <li class="file-item">
         ${it.thumb ? `<img src="${it.thumb}" alt="">` : '<span class="thumb-ph"></span>'}
-        <span class="fname">${esc(it.file.name)}</span>
+        <span class="fname" title="${esc(it.file.name)}">${esc(it.file.name)}</span>
         <button type="button" class="icon-btn danger" data-remove="${it.id}" aria-label="Remove ${esc(it.file.name)}">✕</button>
       </li>`).join('');
     $('.dz-title').textContent = state.files.length ? 'Add another file' : 'Upload schedule';

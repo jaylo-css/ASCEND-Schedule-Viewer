@@ -90,7 +90,7 @@ button, input, select { font: inherit; color: inherit; }
 .dz-title { font-weight: 800; font-size: 18px; }
 .dz-sub { font-size: 14px; color: var(--muted); }
 
-.file-list { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 6px; }
+.file-list { list-style: none; padding: 0; margin: 10px 0 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .file-item { display: flex; align-items: center; gap: 10px; padding: 6px; border: 1px solid var(--border); border-radius: 12px; background: var(--field); }
 .file-item img, .file-item .thumb-ph { width: 44px; height: 44px; object-fit: cover; object-position: top; border-radius: 8px; background: #dde4f6; flex: none; }
 .file-item .fname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
@@ -186,6 +186,9 @@ input:focus, select:focus { outline: none; border-color: var(--focus); box-shado
 @media (min-width: 1100px) {
   .ws-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
   .panel-preview { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; overscroll-behavior: contain; }
+  /* Leave room for the controls so Download stays in view without scrolling the panel. */
+  .panel-preview #preview { max-height: max(380px, min(64vh, calc(100vh - 480px))); }
+  .dl-row { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
   .mobile-only { display: none !important; }
 }
 .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
@@ -271,7 +274,8 @@ input:focus, select:focus { outline: none; border-color: var(--focus); box-shado
 .custom-size { display: flex; align-items: center; gap: 6px; }
 .custom-size input { width: 110px; }
 .toggles { display: grid; gap: 8px; }
-#btn-share { margin-top: 8px; }
+.dl-row { display: grid; gap: 8px; margin-top: 14px; }
+.dl-row .btn.full { margin-top: 0; }
 
 .site-footer { padding: 16px 16px 32px; color: var(--muted); font-size: 12.5px; text-align: center; }
 .site-footer p { margin: 0; }
