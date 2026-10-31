@@ -111,8 +111,8 @@
       <div class="ws-bar">
         <button type="button" class="btn ghost small" id="btn-back">← Back</button>
         <div class="seg ws-tabs" role="tablist" aria-label="Sections">
-          <button type="button" role="tab" data-tab="edit" aria-selected="true">Check</button>
-          <button type="button" role="tab" data-tab="preview" aria-selected="false">Download</button>
+          <button type="button" role="tab" data-tab="preview" aria-selected="true">Schedule</button>
+          <button type="button" role="tab" data-tab="edit" aria-selected="false">Edit</button>
         </div>
         <div class="menu-wrap">
           <button type="button" class="icon-btn" id="btn-menu" aria-haspopup="true" aria-expanded="false" aria-label="More actions">⋯</button>
@@ -125,35 +125,17 @@
         </div>
       </div>
 
-      <div class="ws-grid show-edit" id="ws-grid">
-        <div class="card panel panel-edit" id="step-edit">
-          <div class="panel-head">
-            <h2>Check your classes</h2>
-          </div>
-          <div id="notices" class="notices" aria-live="polite"></div>
-          <div class="meta-grid">
-            <label class="f"><span>Term</span><input id="meta-term" data-meta="term" list="term-options" placeholder="2nd Term"></label>
-            <label class="f"><span>School year</span><input id="meta-sy" data-meta="schoolYear" placeholder="2026–2027"></label>
-          </div>
-          <details class="mini-details meta-more">
-            <summary>Program &amp; label</summary>
-            <div class="meta-grid">
-              <label class="f"><span>Program</span><input id="meta-program" data-meta="program"></label>
-              <label class="f"><span>Extra label</span><input id="meta-caption" data-meta="caption" maxlength="40" placeholder="e.g. Block CPE231"></label>
-            </div>
-          </details>
-          <datalist id="term-options">
-            <option value="1st Term"><option value="2nd Term"><option value="3rd Term">
-            <option value="1st Semester"><option value="2nd Semester"><option value="Summer Term">
-          </datalist>
-          <div id="subjects" class="subjects"></div>
-          <button type="button" class="btn ghost full" id="btn-add-subject">+ Add subject</button>
-          <button type="button" class="btn primary big full mobile-only" id="btn-to-preview">Looks good → Download</button>
-        </div>
-
+      <div class="ws-grid show-preview" id="ws-grid">
         <div class="card panel panel-preview" id="step-download">
+          <div class="check-bar" id="check-bar">
+            <div class="check-text">
+              <b id="check-title">Here's your schedule</b>
+              <span id="check-sub">Tap a class on the image to fix it.</span>
+            </div>
+            <button type="button" class="btn small primary mobile-only" id="btn-to-edit">Edit</button>
+          </div>
           <div class="preview-wrap">
-            <canvas id="preview" aria-label="Schedule image preview" role="img"></canvas>
+            <canvas id="preview" aria-label="Schedule image preview. Tap a class to edit it." role="img"></canvas>
           </div>
           <div class="controls">
             <div class="seg seg-full" data-opt="layout">
@@ -190,6 +172,31 @@
           </button>
           <button type="button" class="btn secondary big full" id="btn-share" hidden>Share / Save to phone</button>
           <p class="hint center" id="size-note"></p>
+        </div>
+
+        <div class="card panel panel-edit" id="step-edit">
+          <div class="panel-head">
+            <h2>Edit details</h2>
+          </div>
+          <div id="notices" class="notices" aria-live="polite"></div>
+          <div class="meta-grid">
+            <label class="f"><span>Term</span><input id="meta-term" data-meta="term" list="term-options" placeholder="2nd Term"></label>
+            <label class="f"><span>School year</span><input id="meta-sy" data-meta="schoolYear" placeholder="2026–2027"></label>
+          </div>
+          <details class="mini-details meta-more">
+            <summary>Program &amp; label</summary>
+            <div class="meta-grid">
+              <label class="f"><span>Program</span><input id="meta-program" data-meta="program"></label>
+              <label class="f"><span>Extra label</span><input id="meta-caption" data-meta="caption" maxlength="40" placeholder="e.g. Block CPE231"></label>
+            </div>
+          </details>
+          <datalist id="term-options">
+            <option value="1st Term"><option value="2nd Term"><option value="3rd Term">
+            <option value="1st Semester"><option value="2nd Semester"><option value="Summer Term">
+          </datalist>
+          <div id="subjects" class="subjects"></div>
+          <button type="button" class="btn ghost full" id="btn-add-subject">+ Add subject</button>
+          <button type="button" class="btn primary big full mobile-only" id="btn-to-preview">Done → View schedule</button>
         </div>
       </div>
     </section>

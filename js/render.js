@@ -24,6 +24,9 @@
     },
   };
 
+  // Where each class was drawn (canvas px), so the page can map a tap on the image to a subject.
+  let hits = [];
+
   const SANS = 'Inter, "Segoe UI", Roboto, system-ui, sans-serif';
   const HEAD = 'Montserrat, Inter, "Segoe UI", system-ui, sans-serif';
 
@@ -290,7 +293,7 @@
     const timeW = Math.round(92 * u);
     const headH = Math.round(60 * u);
     const segs = segments(ms, opt.collapse);
-    const gapH = Math.round(44 * u);
+    const gapH = Math.round(54 * u);
     const nGaps = segs.filter((s) => s.gap).length;
     const activeMin = segs.filter((s) => !s.gap).reduce((t, s) => t + s.b - s.a, 0);
     const gridTop = area.y + headH;
@@ -337,11 +340,6 @@
         setFont(ctx, 700, 16 * u); spacing(ctx, 3 * u);
         ctx.fillStyle = th.muted; ctx.textAlign = 'center';
         ctx.fillText('NO CLASSES', area.x + timeW + (area.w - timeW) / 2, (y0 + y1) / 2);
-        // zig-zag break mark in the time column
-        ctx.strokeStyle = th.muted; ctx.lineWidth = 2 * u; ctx.beginPath();
-        const zx = area.x + timeW - 34 * u;
-        for (let i = 0; i <= 4; i++) ctx.lineTo(zx + i * 8 * u, (y0 + y1) / 2 + (i % 2 ? -6 : 6) * u);
-        ctx.stroke();
         ctx.restore();
         setFont(ctx, 600, 19 * u); ctx.textAlign = 'right';
         return;
@@ -424,6 +422,7 @@
       let L = measure(b, fs, drop);
       for (const d of dropOrder) { if (L.need <= b.h) break; drop.push(d); L = measure(b, fs, drop); }
       drawBlock(ctx, b, L, th, u);
+      hits.push({ x: b.x, y: b.y, w: b.w, h: b.h, id: b.m.subj.id });
     });
   }
 
@@ -496,15 +495,19 @@
 
     let cols = [days];
     let s = area.h / (colHeight(days) * u);
-    if (s < 0.68 && days.length > 1) {
-      // two columns, split where the heights balance best
+    if (s < 1 && days.length > 1) {
+      // Two columns, split where the heights balance best — used when it makes the text clearly
+      // bigger and each column is still wide enough (squares, landscapes, very full weeks).
       let best = null;
       for (let i = 1; i < days.length; i++) {
         const hmax = Math.max(colHeight(days.slice(0, i)), colHeight(days.slice(i)));
         if (!best || hmax < best.h) best = { i, h: hmax };
       }
-      cols = [days.slice(0, best.i), days.slice(best.i)];
-      s = area.h / (best.h * u);
+      const s2 = Math.min(area.h / (best.h * u), ((area.w - 28 * u) / 2) / (620 * u));
+      if (s < 0.68 || s2 > s * 1.2) {
+        cols = [days.slice(0, best.i), days.slice(best.i)];
+        s = Math.max(s, s2);
+      }
     }
     s = Math.min(s, 1.3);
     const S = s * u;
@@ -540,6 +543,7 @@
     const info = blockInfo(m, opt);
     const solid = th.style === 'solid';
     const r = 16 * S;
+    hits.push({ x, y, w, h, id: m.subj.id });
     ctx.save();
     if (solid) {
       ctx.fillStyle = 'rgba(255,255,255,0.07)';
@@ -641,6 +645,7 @@
     const ctx = canvas.getContext('2d');
     const th = THEMES[opt.theme] || THEMES.midnight;
     const u = Math.min(W / 1080, H / 1350);
+    hits = [];
 
     drawBackground(ctx, W, H, th, u);
     const pad = Math.round(44 * u);
@@ -662,6 +667,7 @@
       drawGrid(ctx, area, ms, th, u, opt);
     }
     drawFooter(ctx, th, u, pad, H - bottom - footerH, W, footerH);
+    return hits;
   }
 
   root.SVRender = { render, THEMES, PALETTE, flatten };

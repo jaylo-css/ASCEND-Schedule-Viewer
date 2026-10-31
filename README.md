@@ -12,6 +12,7 @@ It's a **static website**: plain HTML, CSS, and JavaScript with no server, no da
 - **Two ways to read a schedule**
   - **AI mode**: the student pastes their own API key. Supported providers are Google Gemini (free tier), OpenAI, and Anthropic Claude. It reads every format, including the portal's calendar view.
   - **Offline mode**: no key needed. It reads the PDF text layer directly, or runs on-device OCR (Tesseract) on images. It's less accurate, so the app warns students to double-check. It reads COR PDFs and List-view screenshots, but not the calendar view.
+- **Schedule first**: after reading, students land on their schedule image with a short "things to check" note. Tapping a class on the image opens that subject for editing.
 - **Review & edit**: every field can be edited. That covers program, term, school year, and an optional label. Per subject: short name, full title, code, section, professor, colour, and days/times/rooms. Professor fields that are still blank are highlighted, and the image shows "TBA" until they're filled in.
 - **Smart cleanup**
   - Long titles are shortened (e.g. *ON-THE-JOB TRAINING 1* → *OJT 1*).
@@ -24,7 +25,7 @@ It's a **static website**: plain HTML, CSS, and JavaScript with no server, no da
   - Themes: Midnight, ASCEND Blue, Light.
   - Lock-screen mode leaves room for the phone's clock.
   - Optional subject codes, sections, and 24-hour time.
-  - Sizes: "Fit this phone exactly" (on phones), 9:20, 9:19.5, 9:16, QHD, 4:5, 16:9, or a custom size. Downloads as a PNG, or shares straight to the phone's gallery where supported.
+  - Sizes: "Fit this phone" (on phones), 9:20, 9:19.5, 9:16, square (1:1), QHD, 4:5, 16:9, or a custom size. Downloads as a PNG, or shares straight to the phone's gallery where supported.
 - **Warnings**: missing days or times, schedule conflicts, missing term, and a guessed school year.
 - **Save / open**: students can save an editable `.json` copy to update later (e.g. when professors are posted).
 

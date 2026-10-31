@@ -141,6 +141,30 @@
   }
   $$('[data-tab]').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
   $('#btn-to-preview').addEventListener('click', () => setTab('preview'));
+  $('#btn-to-edit').addEventListener('click', () => setTab('edit'));
+
+  // Tap a class on the image → jump to that subject, opened for editing.
+  function openSubject(id) {
+    state.open.add(id);
+    const card = $(`[data-sid="${id}"]`);
+    if (!card) return;
+    card.classList.add('open');
+    $('.subj-body', card).hidden = false;
+    $('.subj-head', card).setAttribute('aria-expanded', 'true');
+    if (!wide.matches) setTab('edit');
+    setTimeout(() => {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash');
+    }, wide.matches ? 0 : 250);
+  }
+  $('#preview').addEventListener('click', (e) => {
+    const r = canvas.getBoundingClientRect();
+    const x = (e.clientX - r.left) * (canvas.width / r.width);
+    const y = (e.clientY - r.top) * (canvas.height / r.height);
+    const hit = hits.find((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+    if (hit) openSubject(hit.id);
+    else if (!wide.matches) setTab('edit');
+  });
   $('#btn-back').addEventListener('click', () => showView('start'));
 
   const menu = $('#menu'), menuBtn = $('#btn-menu');
@@ -165,6 +189,7 @@
     { id: '1080x2400', label: 'Android phone (9:20)' },
     { id: '1080x2340', label: 'iPhone (9:19.5)' },
     { id: '1080x1920', label: 'Older phone / Story (9:16)' },
+    { id: '1080x1080', label: 'Square (1:1)' },
     { id: '1440x3200', label: 'QHD Android (9:20)' },
     { id: '1080x1350', label: 'Portrait post (4:5)' },
     { id: '1920x1080', label: 'Laptop / desktop (16:9)' },
@@ -185,6 +210,7 @@
   /* ----------------------------------------------------------- preview */
   const canvas = $('#preview');
   let raf = 0;
+  let hits = [];
   function schedulePreview() {
     if (raf || !state.data) return;
     raf = requestAnimationFrame(() => { raf = 0; drawPreview(); });
@@ -192,7 +218,7 @@
   function drawPreview() {
     if (!state.data) return;
     const { w, h } = currentSize();
-    R.render(canvas, state.data, Object.assign({}, prefs.opts, { width: w, height: h, logo }));
+    hits = R.render(canvas, state.data, Object.assign({}, prefs.opts, { width: w, height: h, logo })) || [];
     $('#size-note').textContent = `${w} × ${h} px PNG`;
   }
   if (document.fonts && document.fonts.load) {
@@ -438,7 +464,7 @@
     renderSubjects();
     renderNotices();
     showView('workspace');
-    setTab('edit');
+    setTab('preview');
     drawPreview();
   }
 
@@ -465,7 +491,7 @@
       ],
     };
     loadData(buildData(sample), 'sample');
-    toast('Sample loaded (a COR with no professors yet).');
+    toast('Sample schedule loaded.');
   });
 
   /* ------------------------------------------------------------ editor */
@@ -686,6 +712,10 @@
     if (noProf) out.push(['info', `${noProf} without a professor. They'll show “TBA” until you add one.`]);
     if (state.syGuessed && d.meta.schoolYear) out.push(['info', 'School year was guessed. Check it below.']);
     $('#notices').innerHTML = out.map(([k, html]) => `<div class="notice ${k}">${html}</div>`).join('');
+    const warns = out.filter(([k]) => k === 'warn').length + (noProf ? 1 : 0);
+    $('#check-bar').classList.toggle('warn', warns > 0);
+    $('#check-title').textContent = warns ? `${warns} thing${warns > 1 ? 's' : ''} to check` : 'Looks good!';
+    $('#check-sub').textContent = (warns ? 'Compare with your COR. ' : '') + 'Tap a class on the image to edit it.';
   }
 
   /* ----------------------------------------------------------- options */
