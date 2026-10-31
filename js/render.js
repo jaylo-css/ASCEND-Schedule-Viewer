@@ -374,25 +374,26 @@
     layoutBlocks(ctx, blocks, th, u, colW, opt);
   }
 
-  // Pick one font size that fits every block; drop low-priority lines only if a block still can't fit.
-  // opt.fontScale (the "Text size" slider) scales the starting size and how big the details are next to the name.
+  // Find the one font size that fits every block (fs0), then apply the "Text size" slider (opt.fontScale) on top.
+  // Above 100% a block that can't hold the bigger text first hides its label and time (the time is on the axis),
+  // then shrinks back toward fs0; a long word only shrinks its own block's name.
   function layoutBlocks(ctx, blocks, th, u, colW, opt) {
     const fsc = opt.fontScale || 1;
-    const maxFs = Math.min(36 * u, colW * 0.18) * fsc;
-    const minFs = Math.min(maxFs, Math.max(11 * u, Math.min(15 * u, colW * 0.1)) * Math.min(1, fsc));
-    const metaRatio = Math.min(1.05, Math.max(0.72, 0.88 * fsc));
-    const measure = (b, fs, drop) => {
-      const pad = fs * 0.45;
-      const mfs = fs * metaRatio, mlh = mfs * 1.4, lh = fs * 1.14;
+    const META = 0.88;
+    const maxFs = Math.min(36 * u, colW * 0.18);
+    const minFs = Math.min(maxFs, Math.max(11 * u, Math.min(15 * u, colW * 0.1)));
+    let pad = maxFs * 0.45;
+    const measure = (b, fs, mfs, drop) => {
+      const mlh = mfs * 1.4, lh = fs * 1.14;
       const maxW = b.w - pad * 2 - (th.style === 'solid' ? 0 : 6 * u);
       setFont(ctx, 800, fs, HEAD);
       // "&" stays on the line before ("CompNet &" / "Security") so it never sits alone on a line.
       const nameText = b.info.name.replace(/ & /g, NB + '& ');
       // A word too wide for the block would be split mid-word — treat that size as "doesn't fit".
-      let broken = nameText.split(/ +/).some((w) => ctx.measureText(w).width > maxW);
+      const nameBroken = nameText.split(/ +/).some((w) => ctx.measureText(w).width > maxW);
       const nameLines = wrap(ctx, nameText, maxW);
       setFont(ctx, 600, mfs);
-      if (b.info.room && ctx.measureText(keepTogether(b.info.room)).width > maxW) broken = true;
+      const broken = nameBroken || !!(b.info.room && ctx.measureText(keepTogether(b.info.room)).width > maxW);
       const metas = [];
       if (b.info.time && !drop.includes('time')) {
         setFont(ctx, 600, mfs);
@@ -415,18 +416,40 @@
       }
       const metaH = metas.reduce((t, mt) => t + mt.lines.length * mlh, 0) + (metas.length ? fs * 0.2 : 0);
       const need = pad * 2 + labelLines.length * mlh * 0.95 + nameLines.length * lh + metaH;
-      return { need, broken, nameLines, labelLines, metas, metaH, pad, mfs, mlh, lh, fs, maxW };
+      return { need, broken, nameBroken, nameLines, labelLines, metas, metaH, pad, mfs, mlh, lh, fs, maxW };
     };
-    let fs = maxFs;
-    for (; fs > minFs; fs -= 0.5 * u) {
-      if (blocks.every((b) => { const L = measure(b, fs, []); return !L.broken && L.need <= b.h; })) break;
+    let fs0 = maxFs;
+    for (; fs0 > minFs; fs0 -= 0.5 * u) {
+      pad = fs0 * 0.45;
+      if (blocks.every((b) => { const L = measure(b, fs0, fs0 * META, []); return !L.broken && L.need <= b.h; })) break;
     }
-    fs = Math.max(fs, minFs);
+    fs0 = Math.max(fs0, minFs);
+    // Smaller text needs less padding; bigger text gets a little more width for long words.
+    pad = fs0 * 0.45 * Math.min(fsc, 1 / fsc);
+    const fits = (L, b) => !L.broken && L.need <= b.h;
     const dropOrder = ['label', 'time', 'prof', 'room'];
     blocks.forEach((b) => {
-      let drop = [];
-      let L = measure(b, fs, drop);
-      for (const d of dropOrder) { if (L.need <= b.h) break; drop.push(d); L = measure(b, fs, drop); }
+      let L = null;
+      // Try the slider's size first, stepping down toward fs0 in 4% steps.
+      const steps = Math.max(1, Math.ceil(Math.abs(fsc - 1) / 0.04));
+      for (let i = 0; i <= steps && !L; i++) {
+        const k = fsc > 1 ? fsc - (fsc - 1) * (i / steps) : fsc;
+        let fs = fs0 * k;
+        // A long word (e.g. "Microprocessors") only shrinks this block's name, not every block's.
+        while (fs > minFs * Math.min(1, fsc) && measure(b, fs, fs0 * META * k, ['label', 'time']).nameBroken) fs -= 0.5 * u;
+        // Details never get bigger than the name above them.
+        const mfs = Math.min(fs0 * META * k, fs * 0.92);
+        for (const drop of [[], ['label'], ['label', 'time']]) {
+          const T = measure(b, fs, mfs, drop);
+          if (fits(T, b)) { L = T; break; }
+        }
+        if (fsc <= 1) break;
+      }
+      if (!L) {
+        const fs = fs0 * Math.min(1, fsc), drop = [];
+        L = measure(b, fs, fs * META, drop);
+        for (const d of dropOrder) { if (L.need <= b.h) break; drop.push(d); L = measure(b, fs, fs * META, drop); }
+      }
       drawBlock(ctx, b, L, th, u);
       hits.push({ x: b.x, y: b.y, w: b.w, h: b.h, id: b.m.subj.id });
     });
