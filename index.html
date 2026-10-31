@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ASCEND Schedule Viewer</title>
+  <meta name="description" content="Turn your COR or student-portal schedule into a clean, phone-sized schedule image. By ASCEND — Academic Society of Computer Engineering Discipline.">
+  <meta name="theme-color" content="#1a1f6a">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <img src="assets/ascend-badge.png" class="brand-logo" alt="ASCEND logo" width="52" height="52">
+      <div class="brand-text">
+        <strong>ASCEND Schedule Viewer</strong>
+        <span>Academic Society of Computer Engineering Discipline</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>Turn your COR into a schedule you can set as your wallpaper.</h1>
+      <p>Upload your Certificate of Registration or portal schedule, check the details, then download a clean image sized for your phone.</p>
+    </section>
+
+    <!-- Privacy -->
+    <section class="card privacy" aria-labelledby="privacy-title">
+      <div class="privacy-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Zm-1.2 14.2-3.5-3.5 1.4-1.4 2.1 2.1 4.9-4.9 1.4 1.4-6.3 6.3Z"/></svg>
+      </div>
+      <div class="privacy-body">
+        <h2 id="privacy-title">Your privacy comes first</h2>
+        <ul>
+          <li><strong>Nothing is recorded.</strong> This tool runs entirely in your browser. ASCEND does not collect, upload, or store your files, your schedule, or your API key.</li>
+          <li><strong>Please hide personal details before uploading:</strong> your name, student number, photo, address, birthday, contact info, fees, and QR codes or barcodes. Only the subject table and the term or school year are needed.</li>
+          <li><strong>Offline mode</strong> reads your file on your own device. <strong>AI mode</strong> sends your images straight from your browser to the AI company you pick, using your own key and under that company's terms.</li>
+        </ul>
+        <details>
+          <summary>Read the full privacy notice</summary>
+          <div class="details-body">
+            <p><b>What this tool does with your data.</b> Your uploaded files are read in this browser tab only. The extracted schedule lives in the tab's memory and disappears when you close or refresh the page. ASCEND has no server, database, analytics, or tracking for this tool.</p>
+            <p><b>AI mode.</b> When you use AI mode, your images are sent directly from your device to the provider you selected (Google, OpenAI, or Anthropic) with your own API key, so they can read the schedule. That provider handles the images under its own privacy terms. ASCEND never receives them. Use Offline mode if you'd rather nothing leaves your device.</p>
+            <p><b>Your API key.</b> Your key is kept in memory for this tab only. If you tick <i>Remember on this device</i>, it is saved in this browser's local storage so you don't need to paste it again. You can clear it at any time with <i>Forget key</i>. Never share your key with anyone.</p>
+            <p><b>Downloads.</b> The schedule image and the optional <code>.json</code> backup are created on your device and saved only where you choose.</p>
+            <p><b>Third-party files.</b> Fonts, the PDF reader, and the offline text recognizer are downloaded from public CDNs (Google Fonts, cdnjs, jsDelivr). Like any website, those servers see a normal download request, but they never receive your files or schedule.</p>
+            <p><b>Please don't upload personal information.</b> Crop or cover your name, student number, photo, address, birthday, contact details, assessment or fees, and QR codes or barcodes. The tool does not need them.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- Step 1: upload -->
+    <section class="card step" id="step-upload" aria-labelledby="s1">
+      <div class="step-head"><span class="step-num">1</span><h2 id="s1">Upload your schedule</h2></div>
+      <div class="upload-grid">
+        <div class="guide">
+          <h3>What to upload for the best results</h3>
+          <ol class="guide-list">
+            <li><span class="tag tag-best">Best</span><div><b>Your COR as a PDF</b>, downloaded from the student portal. Both modes read it very well.</div></li>
+            <li><span class="tag tag-good">Great</span><div><b>A screenshot of “My Schedule Viewer” in List view</b> (tap the <span class="kbd">☰</span> list button). Make sure every subject row and the title with the term and AY are visible.</div></li>
+            <li><span class="tag tag-ok">AI only</span><div><b>Calendar or grid view screenshots.</b> If you needed more than one screenshot, upload all of them.</div></li>
+          </ol>
+          <h4>Tips</h4>
+          <ul class="tips">
+            <li>Crop to the schedule table plus the term or AY heading.</li>
+            <li>Cover or crop out your name, student number, photo, and other personal details.</li>
+            <li>On a phone, switch on <i>Desktop site</i> or turn the phone sideways so the whole table fits. Zoom in until the text is sharp.</li>
+            <li>Use real screenshots, not photos of a screen. They're far more accurate.</li>
+            <li>PNG, JPG, WEBP, or PDF, up to 6 files.</li>
+          </ul>
+        </div>
+        <div class="drop-col">
+          <label class="dropzone" id="dropzone" for="file-input">
+            <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/*,application/pdf,.pdf" multiple>
+            <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true"><path fill="currentColor" d="M19 13v6H5v-6H3v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6h-2ZM11 15h2V7.8l3.1 3.1 1.4-1.4L12 4 6.5 9.5l1.4 1.4L11 7.8V15Z"/></svg>
+            <span class="dz-title">Tap to choose files</span>
+            <span class="dz-sub">or drag and drop them here</span>
+          </label>
+          <ul class="file-list" id="file-list" aria-live="polite"></ul>
+          <p class="alt-actions">
+            <button type="button" class="link-btn" id="btn-manual">Type it in manually</button>
+            <span aria-hidden="true">·</span>
+            <button type="button" class="link-btn" id="btn-sample">Try a sample schedule</button>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 2: read -->
+    <section class="card step" id="step-read" aria-labelledby="s2">
+      <div class="step-head"><span class="step-num">2</span><h2 id="s2">Choose how to read it</h2></div>
+      <div class="mode-switch" role="radiogroup" aria-label="Reading mode">
+        <button type="button" class="mode-opt" role="radio" data-mode="ai">
+          <span class="mode-title">AI mode <span class="pill pill-acc">Most accurate</span></span>
+          <span class="mode-desc">Uses your own AI API key. Google Gemini has a free tier. Handles every format, including calendar view.</span>
+        </button>
+        <button type="button" class="mode-opt" role="radio" data-mode="offline">
+          <span class="mode-title">Offline mode <span class="pill">No key needed</span></span>
+          <span class="mode-desc">Reads the text on your own device. Less accurate, so double-check the results. Works with a COR PDF or List view only.</span>
+        </button>
+      </div>
+
+      <div id="ai-settings" class="settings">
+        <div class="field">
+          <span class="field-label" id="prov-label">AI provider</span>
+          <div class="seg" id="provider-seg" role="radiogroup" aria-labelledby="prov-label"></div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="api-key">Your API key</label>
+          <div class="key-row">
+            <input type="password" id="api-key" autocomplete="off" spellcheck="false" placeholder="Paste your API key">
+            <button type="button" class="btn ghost small" id="btn-show-key" aria-pressed="false">Show</button>
+          </div>
+          <p class="hint" id="key-hint"></p>
+          <div class="key-opts">
+            <label class="check"><input type="checkbox" id="remember-key"> Remember on this device</label>
+            <button type="button" class="link-btn" id="btn-forget-key" hidden>Forget key</button>
+          </div>
+        </div>
+        <details class="advanced">
+          <summary>Advanced</summary>
+          <div class="field">
+            <label class="field-label" for="ai-model">Model</label>
+            <div class="key-row">
+              <input type="text" id="ai-model" spellcheck="false">
+              <button type="button" class="btn ghost small" id="btn-reset-model">Reset</button>
+            </div>
+            <p class="hint">Change this only if the provider says the model isn't available.</p>
+          </div>
+        </details>
+        <p class="note" id="ai-note"></p>
+        <details class="howto">
+          <summary>No API key yet? Get a free one in 2 minutes.</summary>
+          <ol>
+            <li>Go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> and sign in with a Google account.</li>
+            <li>Click <b>Create API key</b>, then copy it.</li>
+            <li>Paste it above. The free tier is enough for reading schedules.</li>
+          </ol>
+          <p class="hint">Treat your key like a password. Don't post it or share it in group chats.</p>
+        </details>
+      </div>
+
+      <div id="offline-settings" class="settings" hidden>
+        <p class="note">Offline mode works best with a <b>COR PDF</b> or a <b>List view</b> screenshot. Calendar view isn't supported offline. The first scan downloads the text recognizer (about 10&nbsp;MB), so it may take a moment.</p>
+      </div>
+
+      <div class="read-actions">
+        <button type="button" class="btn primary big" id="btn-read" disabled>Read my schedule</button>
+        <span class="hint" id="read-hint">Upload a file first.</span>
+      </div>
+      <div class="progress" id="progress" hidden>
+        <div class="bar"><span id="progress-bar"></span></div>
+        <p id="progress-msg">Working…</p>
+      </div>
+      <div class="alert alert-error" id="read-error" role="alert" hidden></div>
+    </section>
+
+    <!-- Steps 3 & 4 -->
+    <section id="workspace" hidden>
+      <div class="ws-grid">
+        <div class="card step" id="step-edit" aria-labelledby="s3">
+          <div class="step-head"><span class="step-num">3</span><h2 id="s3">Review and edit</h2></div>
+          <p class="sub">Fix anything that's wrong. Changes show up in the preview right away.</p>
+          <div id="notices" class="notices" aria-live="polite"></div>
+          <div class="meta-grid">
+            <label class="f"><span>Program</span><input id="meta-program" data-meta="program"></label>
+            <label class="f"><span>Term</span><input id="meta-term" data-meta="term" list="term-options" placeholder="e.g. 2nd Term"></label>
+            <label class="f"><span>School year</span><input id="meta-sy" data-meta="schoolYear" placeholder="e.g. 2026–2027"></label>
+            <label class="f"><span>Extra label <i>(optional)</i></span><input id="meta-caption" data-meta="caption" maxlength="40" placeholder="e.g. Block CPE231. Not your name."></label>
+          </div>
+          <datalist id="term-options">
+            <option value="1st Term"><option value="2nd Term"><option value="3rd Term">
+            <option value="1st Semester"><option value="2nd Semester"><option value="Summer Term">
+          </datalist>
+          <div id="subjects" class="subjects"></div>
+          <button type="button" class="btn ghost" id="btn-add-subject">+ Add subject</button>
+        </div>
+
+        <div class="card step preview-card" id="step-download" aria-labelledby="s4">
+          <div class="step-head"><span class="step-num">4</span><h2 id="s4">Design and download</h2></div>
+          <div class="preview-wrap" id="preview-wrap">
+            <canvas id="preview" aria-label="Schedule image preview" role="img"></canvas>
+          </div>
+          <div class="controls">
+            <div class="field">
+              <span class="field-label">Layout</span>
+              <div class="seg" data-opt="layout">
+                <button type="button" data-val="grid">Weekly grid</button>
+                <button type="button" data-val="list">Day list</button>
+              </div>
+            </div>
+            <div class="field">
+              <span class="field-label">Theme</span>
+              <div class="swatches" data-opt="theme">
+                <button type="button" data-val="midnight" class="sw sw-midnight" title="Midnight" aria-label="Midnight theme"></button>
+                <button type="button" data-val="ascend" class="sw sw-ascend" title="ASCEND Blue" aria-label="ASCEND Blue theme"></button>
+                <button type="button" data-val="light" class="sw sw-light" title="Light" aria-label="Light theme"></button>
+              </div>
+            </div>
+            <div class="field">
+              <label class="field-label" for="size-select">Image size</label>
+              <select id="size-select"></select>
+              <div class="custom-size" id="custom-size" hidden>
+                <input type="number" id="custom-w" min="400" max="4000" step="10" aria-label="Width in pixels"> ×
+                <input type="number" id="custom-h" min="400" max="6000" step="10" aria-label="Height in pixels"> px
+              </div>
+            </div>
+            <div class="toggles">
+              <label class="check"><input type="checkbox" data-opt="wallpaper"> Lock-screen mode <span class="hint">(leaves room for the clock)</span></label>
+              <label class="check"><input type="checkbox" data-opt="collapse"> Squeeze long breaks</label>
+              <label class="check"><input type="checkbox" data-opt="showTime"> Show class times</label>
+              <label class="check"><input type="checkbox" data-opt="showCode"> Show subject codes</label>
+              <label class="check"><input type="checkbox" data-opt="showSection"> Show sections</label>
+              <label class="check"><input type="checkbox" data-opt="h24"> 24-hour time</label>
+            </div>
+          </div>
+          <div class="dl-actions">
+            <button type="button" class="btn primary big" id="btn-download">Download image</button>
+            <button type="button" class="btn secondary big" id="btn-share" hidden>Share / Save to phone</button>
+          </div>
+          <p class="hint center" id="size-note"></p>
+          <div class="file-actions">
+            <button type="button" class="link-btn" id="btn-export">Save editable copy (.json)</button>
+            <span aria-hidden="true">·</span>
+            <label class="link-btn" for="import-input">Open a saved copy</label>
+            <input type="file" id="import-input" accept=".json,application/json" hidden>
+            <span aria-hidden="true">·</span>
+            <button type="button" class="link-btn danger" id="btn-reset">Start over</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><b>ASCEND</b> · Academic Society of Computer Engineering Discipline</p>
+      <p>Unofficial student tool. Always double-check against your official COR.</p>
+    </div>
+  </footer>
+
+  <a href="#step-download" class="fab" id="fab-preview" hidden>Preview &amp; download ↓</a>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="js/logo-data.js"></script>
+  <script src="js/parser.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/extract.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
