@@ -469,6 +469,13 @@
       .join(' ');
   }
 
+  /** A table header line: a strong column title, or only column-title words (the "CODE" under "SUBJECT"). */
+  function isHeaderLine(l) {
+    const words = l.words.map((w) => w.text.replace(/[^A-Za-z]/g, '')).filter(Boolean);
+    if (words.some((w) => /^(DESCRIPTION|SCHEDULE|INSTRUCTOR|UNITS|SECTION)$/i.test(w))) return true;
+    return words.length > 0 && words.every((w) => /^(SUBJECT|CODE|DESCRIPTION|TITLE|SECTION|DAYS?|TIME|SCHEDULE|ROOM|UNITS|INSTRUCTOR|PROFESSOR|STATUS)$/i.test(w));
+  }
+
   /**
    * Table extraction from positioned words (PDF text layer or OCR).
    * Returns { subjects, meta, text, kind } where kind hints at what was detected.
@@ -495,16 +502,26 @@
       const tok = w.text.replace(/[^A-Z0-9]/g, '');
       if (CODE_RE.test(tok) && tok.length === w.text.replace(/[^A-Za-z0-9]/g, '').length && tok.match(CODE_RE)[1] === tok) anchors.push({ li, w, yc: l.yc });
     }));
+    // Codes in brackets are references (the COR's fee lines: "(CPSMRF1D, CPTHS21D)"), not row starts.
+    anchors = anchors.filter((a) => !/^\(/.test(a.w.text));
     if (!anchors.length) {
       const calendar = /\bSun\b.*\bMon\b.*\bTue\b/i.test(fullText);
       return { subjects: [], meta, text: fullText, kind: calendar ? 'calendar' : 'none' };
     }
+    // The table ends at its TOTAL row; codes further down (fee breakdowns) aren't subjects.
+    const firstYc = Math.min(...anchors.map((a) => a.yc));
+    const totalLine = lines.find((l, li) => l.yc > firstYc && !anchors.some((a) => a.li === li) && l.words.some((w) => /^TOTAL$/i.test(w.text)));
+    const tableEnd = totalLine ? totalLine.yc - 0.4 * h : Infinity;
+    anchors = anchors.filter((a) => a.yc < tableEnd);
     const minX = Math.min(...anchors.map((a) => a.w.x0));
     anchors = anchors.filter((a) => a.w.x0 < minX + 3 * h);
+    // The header's last line ("SUBJECT" / "CODE" stacked) marks where rows can start.
+    const headerEnd = Math.max(-Infinity, ...lines.filter((l) => l.yc < firstYc - 0.4 * h && isHeaderLine(l)).map((l) => l.yc + 0.5 * h));
     // Misread codes ("CPCNETIL") are still row starts if they sit in the code column and can be repaired.
     lines.forEach((l, li) => {
       const w = l.words[0];
       if (!w || anchors.some((a) => a.li === li) || w.x0 > minX + 2 * h) return;
+      if (l.yc <= headerEnd || l.yc >= tableEnd) return;
       const fixed = fixCode(w.text);
       if (/^[A-Z]{4,9}\d/.test(fixed) && fixed.length >= 6 && fixed.length <= 11 && CODE_RE.test(fixed)) {
         w.text = fixed;
@@ -525,14 +542,8 @@
 
     // Body bounds: below the table header, above the TOTAL row.
     const first = anchors[0], last = anchors[anchors.length - 1];
-    let top = first.yc - 3 * p;
-    lines.forEach((l) => {
-      if (l.yc < first.yc - 0.4 * h && l.words.some((w) => /^(DESCRIPTION|SCHEDULE|INSTRUCTOR|UNITS|SECTION)$/i.test(w.text))) top = Math.max(top, l.yc + 0.5 * h);
-    });
-    let bottom = last.yc + 4 * p;
-    for (const l of lines) {
-      if (l.yc > last.yc && l.words.some((w) => /^TOTAL$/i.test(w.text))) { bottom = Math.min(bottom, l.yc - 0.4 * h); break; }
-    }
+    const top = Math.max(first.yc - 3 * p, Math.min(headerEnd, first.yc - 0.4 * h));
+    const bottom = Math.min(last.yc + 4 * p, tableEnd);
     const body = lines.filter((l) => l.yc > top && l.yc < bottom);
 
     // Are multi-line cells vertically centred (COR) or top-aligned (portal)?
