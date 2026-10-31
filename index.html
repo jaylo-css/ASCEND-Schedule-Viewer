@@ -134,14 +134,25 @@
             </div>
             <button type="button" class="btn small primary mobile-only" id="btn-to-edit">Edit</button>
           </div>
-          <div class="preview-wrap">
-            <canvas id="preview" aria-label="Schedule image preview. Tap a class to edit it." role="img"></canvas>
-          </div>
+          <button type="button" class="preview-wrap" id="btn-expand" aria-label="View the schedule image full screen">
+            <canvas id="preview" aria-hidden="true"></canvas>
+            <span class="expand-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M4 4h6v2H7.4l3.3 3.3-1.4 1.4L6 7.4V10H4V4Zm10 0h6v6h-2V7.4l-3.3 3.3-1.4-1.4L16.6 6H14V4ZM4 14h2v2.6l3.3-3.3 1.4 1.4L7.4 18H10v2H4v-6Zm16 0v6h-6v-2h2.6l-3.3-3.3 1.4-1.4 3.3 3.3V14h2Z"/></svg>
+              Tap to expand
+            </span>
+          </button>
           <div class="controls">
             <div class="seg seg-full" data-opt="layout">
               <button type="button" data-val="grid">Weekly grid</button>
               <button type="button" data-val="list">Day list</button>
             </div>
+            <label class="text-size">
+              <span class="ts-label">Text size</span>
+              <span class="ts-a small" aria-hidden="true">A</span>
+              <input type="range" id="font-scale" min="70" max="150" step="5" aria-describedby="font-scale-val">
+              <span class="ts-a big" aria-hidden="true">A</span>
+              <output id="font-scale-val" for="font-scale">100%</output>
+            </label>
             <div class="control-row">
               <div class="swatches" data-opt="theme" aria-label="Theme">
                 <button type="button" data-val="midnight" class="sw sw-midnight" title="Midnight" aria-label="Midnight theme"></button>
@@ -308,6 +319,19 @@
       <li><b>Fonts and readers</b> load from public CDNs (Google Fonts, cdnjs, jsDelivr). They never receive your files.</li>
     </ul>
     <button type="button" class="btn primary full" data-close>Got it</button>
+  </dialog>
+
+  <!-- ============ FULL-SCREEN IMAGE VIEWER ============ -->
+  <dialog id="viewer" class="viewer" aria-label="Your schedule image">
+    <div class="viewer-bar">
+      <span class="viewer-hint" id="viewer-hint">Tap a class to edit it</span>
+      <button type="button" class="vbtn" id="btn-zoom" aria-pressed="false">Zoom in</button>
+      <button type="button" class="vbtn primary" id="btn-viewer-dl">Download</button>
+      <button type="button" class="vbtn icon" data-close aria-label="Close">✕</button>
+    </div>
+    <div class="viewer-scroll" id="viewer-scroll">
+      <img id="viewer-img" alt="Your schedule">
+    </div>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>

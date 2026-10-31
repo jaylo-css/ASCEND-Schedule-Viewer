@@ -12,7 +12,8 @@ It's a **static website**: plain HTML, CSS, and JavaScript with no server, no da
 - **Two ways to read a schedule**
   - **AI mode**: the student pastes their own API key. Supported providers are Google Gemini (free tier), OpenAI, and Anthropic Claude. It reads every format, including the portal's calendar view.
   - **Offline mode**: no key needed. It reads the PDF text layer directly, or runs on-device OCR (Tesseract) on images. It's less accurate, so the app warns students to double-check. It reads COR PDFs and List-view screenshots, but not the calendar view.
-- **Schedule first**: after reading, students land on their schedule image with a short "things to check" note. Tapping a class on the image opens that subject for editing.
+- **Schedule first**: after reading, students land on their schedule image with a short "things to check" note. Tapping the image opens it full screen with zoom and Download. Tapping a class there opens that subject for editing.
+- **Text size**: a slider (70–150%) makes class details bigger or smaller on the image.
 - **Review & edit**: every field can be edited. That covers program, term, school year, and an optional label. Per subject: short name, full title, code, section, professor, colour, and days/times/rooms. Professor fields that are still blank are highlighted, and the image shows "TBA" until they're filled in.
 - **Smart cleanup**
   - Long titles are shortened (e.g. *ON-THE-JOB TRAINING 1* → *OJT 1*).

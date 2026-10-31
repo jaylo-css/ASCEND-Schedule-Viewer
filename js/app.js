@@ -23,7 +23,7 @@
 
   const DEFAULT_OPTS = {
     layout: 'grid', theme: 'midnight', size: isPhone ? 'device' : '1080x2400', customW: 1080, customH: 2400,
-    wallpaper: false, collapse: true, showTime: true, showCode: false, showSection: false, h24: false,
+    wallpaper: false, collapse: true, showTime: true, showCode: false, showSection: false, h24: false, fontScale: 1,
   };
   const prefs = { mode: 'ai', provider: 'gemini', models: {}, opts: Object.assign({}, DEFAULT_OPTS) };
   try {
@@ -157,14 +157,51 @@
       card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash');
     }, wide.matches ? 0 : 250);
   }
-  $('#preview').addEventListener('click', (e) => {
-    const r = canvas.getBoundingClientRect();
-    const x = (e.clientX - r.left) * (canvas.width / r.width);
-    const y = (e.clientY - r.top) * (canvas.height / r.height);
+  /* --------------------------------------------- full-screen image viewer */
+  const viewer = $('#viewer'), vImg = $('#viewer-img'), vScroll = $('#viewer-scroll');
+  let viewerUrl = '';
+  function setZoom(on, atX, atY) {
+    // atX/atY: where the tap landed, as a fraction of the image, so zooming keeps that spot in view
+    viewer.classList.toggle('zoomed', on);
+    $('#btn-zoom').textContent = on ? 'Fit screen' : 'Zoom in';
+    $('#btn-zoom').setAttribute('aria-pressed', String(on));
+    if (on) {
+      const fitW = Math.min(vScroll.clientWidth - 24, (vScroll.clientHeight - 12) * canvas.width / canvas.height);
+      vImg.style.width = Math.round(Math.max(fitW * 2.2, Math.min(canvas.width, vScroll.clientWidth * 1.2))) + 'px';
+      requestAnimationFrame(() => {
+        vScroll.scrollLeft = (atX == null ? 0.5 : atX) * vImg.offsetWidth - vScroll.clientWidth / 2;
+        vScroll.scrollTop = (atY == null ? 0 : atY) * vImg.offsetHeight - vScroll.clientHeight / 2;
+      });
+    } else {
+      vImg.style.width = '';
+    }
+  }
+  function openViewer() {
+    drawPreview();
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      if (viewerUrl) URL.revokeObjectURL(viewerUrl);
+      viewerUrl = URL.createObjectURL(blob);
+      vImg.src = viewerUrl;
+      setZoom(false);
+      $('#viewer-hint').textContent = 'Tap a class to edit it';
+      openModal('viewer');
+    }, 'image/png');
+  }
+  viewer.addEventListener('close', () => { setZoom(false); if (viewerUrl) { URL.revokeObjectURL(viewerUrl); viewerUrl = ''; } });
+  $('#btn-expand').addEventListener('click', openViewer);
+  $('#btn-zoom').addEventListener('click', () => setZoom(!viewer.classList.contains('zoomed')));
+  $('#btn-viewer-dl').addEventListener('click', () => $('#btn-download').click());
+  // Tap a class → edit it; tap anywhere else on the image → zoom in/out there; tap outside the image → close.
+  vImg.addEventListener('click', (e) => {
+    const r = vImg.getBoundingClientRect();
+    const fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+    const x = fx * canvas.width, y = fy * canvas.height;
     const hit = hits.find((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
-    if (hit) openSubject(hit.id);
-    else if (!wide.matches) setTab('edit');
+    if (hit) { closeModal(viewer); openSubject(hit.id); return; }
+    setZoom(!viewer.classList.contains('zoomed'), fx, fy);
   });
+  vScroll.addEventListener('click', (e) => { if (e.target === vScroll) closeModal(viewer); });
   $('#btn-back').addEventListener('click', () => showView('start'));
 
   const menu = $('#menu'), menuBtn = $('#btn-menu');
@@ -715,7 +752,7 @@
     const warns = out.filter(([k]) => k === 'warn').length + (noProf ? 1 : 0);
     $('#check-bar').classList.toggle('warn', warns > 0);
     $('#check-title').textContent = warns ? `${warns} thing${warns > 1 ? 's' : ''} to check` : 'Looks good!';
-    $('#check-sub').textContent = (warns ? 'Compare with your COR. ' : '') + 'Tap a class on the image to edit it.';
+    $('#check-sub').textContent = warns ? 'Compare with your COR, then fix it in Edit.' : 'Tap the image to see it full screen.';
   }
 
   /* ----------------------------------------------------------- options */
@@ -735,6 +772,8 @@
     if (!SIZES.some((s) => s.id === o.size)) { o.size = SIZES[0].id; sel.value = o.size; }
     $('#custom-size').hidden = o.size !== 'custom';
     $('#custom-w').value = o.customW; $('#custom-h').value = o.customH;
+    $('#font-scale').value = Math.round((o.fontScale || 1) * 100);
+    $('#font-scale-val').textContent = Math.round((o.fontScale || 1) * 100) + '%';
   }
   function setOpt(k, v) { prefs.opts[k] = v; savePrefs(); syncOptionControls(); drawPreview(); }
 
@@ -743,6 +782,12 @@
     else el.addEventListener('click', (e) => { const b = e.target.closest('[data-val]'); if (b) setOpt(el.dataset.opt, b.dataset.val); });
   });
   $('#size-select').addEventListener('change', (e) => setOpt('size', e.target.value));
+  $('#font-scale').addEventListener('input', (e) => {
+    prefs.opts.fontScale = +e.target.value / 100;
+    $('#font-scale-val').textContent = e.target.value + '%';
+    schedulePreview();
+  });
+  $('#font-scale').addEventListener('change', savePrefs);
   ['customW', 'customH'].forEach((k) => {
     const el = $(k === 'customW' ? '#custom-w' : '#custom-h');
     el.addEventListener('change', () => { prefs.opts[k] = +el.value; savePrefs(); drawPreview(); });

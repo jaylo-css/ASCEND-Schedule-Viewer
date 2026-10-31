@@ -290,7 +290,7 @@
 
   function drawGrid(ctx, area, ms, th, u, opt) {
     const days = P.DAYS.filter((d) => ms.some((m) => m.day === d));
-    const timeW = Math.round(92 * u);
+    const timeW = Math.round(78 * u);
     const headH = Math.round(60 * u);
     const segs = segments(ms, opt.collapse);
     const gapH = Math.round(54 * u);
@@ -329,7 +329,7 @@
 
     // hour lines + labels
     const labelled = new Set();
-    setFont(ctx, 600, 19 * u);
+    setFont(ctx, 600, 20 * u);
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     segs.forEach((s) => {
       if (s.gap) {
@@ -341,7 +341,7 @@
         ctx.fillStyle = th.muted; ctx.textAlign = 'center';
         ctx.fillText('NO CLASSES', area.x + timeW + (area.w - timeW) / 2, (y0 + y1) / 2);
         ctx.restore();
-        setFont(ctx, 600, 19 * u); ctx.textAlign = 'right';
+        setFont(ctx, 600, 20 * u); ctx.textAlign = 'right';
         return;
       }
       for (let t = s.a; t <= s.b; t += 60) {
@@ -351,7 +351,7 @@
         if (!labelled.has(t)) {
           labelled.add(t);
           ctx.fillStyle = th.muted;
-          ctx.fillText(opt.h24 ? P.hhmm(t) : P.fmtTime(t, { short: true }), area.x + timeW - 14 * u, y);
+          ctx.fillText(opt.h24 ? P.hhmm(t) : P.fmtTime(t, { short: true }), area.x + timeW - 10 * u, y);
         }
       }
     });
@@ -371,22 +371,28 @@
         });
       });
     });
-    layoutBlocks(ctx, blocks, th, u, colW);
+    layoutBlocks(ctx, blocks, th, u, colW, opt);
   }
 
   // Pick one font size that fits every block; drop low-priority lines only if a block still can't fit.
-  function layoutBlocks(ctx, blocks, th, u, colW) {
-    const maxFs = Math.min(30 * u, colW * 0.15);
-    const minFs = Math.max(11 * u, Math.min(15 * u, colW * 0.1));
+  // opt.fontScale (the "Text size" slider) scales the starting size and how big the details are next to the name.
+  function layoutBlocks(ctx, blocks, th, u, colW, opt) {
+    const fsc = opt.fontScale || 1;
+    const maxFs = Math.min(36 * u, colW * 0.18) * fsc;
+    const minFs = Math.min(maxFs, Math.max(11 * u, Math.min(15 * u, colW * 0.1)) * Math.min(1, fsc));
+    const metaRatio = Math.min(1.05, Math.max(0.72, 0.88 * fsc));
     const measure = (b, fs, drop) => {
-      const pad = fs * 0.55;
-      const mfs = fs * 0.76, mlh = mfs * 1.45, lh = fs * 1.16;
+      const pad = fs * 0.45;
+      const mfs = fs * metaRatio, mlh = mfs * 1.4, lh = fs * 1.14;
       const maxW = b.w - pad * 2 - (th.style === 'solid' ? 0 : 6 * u);
       setFont(ctx, 800, fs, HEAD);
-      const nameText = b.info.name.replace(/ & /g, ' &' + NB);
+      // "&" stays on the line before ("CompNet &" / "Security") so it never sits alone on a line.
+      const nameText = b.info.name.replace(/ & /g, NB + '& ');
       // A word too wide for the block would be split mid-word — treat that size as "doesn't fit".
-      const broken = nameText.split(/ +/).some((w) => ctx.measureText(w).width > maxW);
+      let broken = nameText.split(/ +/).some((w) => ctx.measureText(w).width > maxW);
       const nameLines = wrap(ctx, nameText, maxW);
+      setFont(ctx, 600, mfs);
+      if (b.info.room && ctx.measureText(keepTogether(b.info.room)).width > maxW) broken = true;
       const metas = [];
       if (b.info.time && !drop.includes('time')) {
         setFont(ctx, 600, mfs);
@@ -490,7 +496,9 @@
     const days = P.DAYS.filter((d) => ms.some((m) => m.day === d)).map((d) => ({
       d, items: ms.filter((m) => m.day === d).sort((a, b) => a.start - b.start),
     }));
-    const DAY_H = 52, DAY_GAP = 26, ITEM_H = 116, ITEM_GAP = 12;
+    const fsc = opt.fontScale || 1;
+    // Text grows faster than the cards, so a bigger text size really reads bigger even when space is tight.
+    const DAY_H = 54 * (0.8 + 0.2 * fsc), DAY_GAP = 26, ITEM_H = 128 * (0.7 + 0.3 * fsc), ITEM_GAP = 12;
     const colHeight = (ds) => ds.reduce((t, g, i) => t + DAY_H + g.items.length * ITEM_H + (g.items.length - 1) * ITEM_GAP + (i ? DAY_GAP : 0), 0);
 
     let cols = [days];
@@ -510,6 +518,7 @@
       }
     }
     s = Math.min(s, 1.3);
+    const TS = fsc; // text scale inside items
     const S = s * u;
     const gutter = 28 * u;
     const colW = (area.w - gutter * (cols.length - 1)) / cols.length;
@@ -521,7 +530,7 @@
       let y = area.y + offY;
       col.forEach((g, gi) => {
         if (gi) y += DAY_GAP * S;
-        setFont(ctx, 800, 27 * S, HEAD); spacing(ctx, 3 * S);
+        setFont(ctx, 800, 28 * S * Math.min(1.2, fsc), HEAD); spacing(ctx, 3 * S);
         ctx.fillStyle = th.text; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
         const label = P.DAY_NAMES[g.d].toUpperCase();
         ctx.fillText(label, x0, y + DAY_H * S / 2 - 4 * S);
@@ -532,14 +541,15 @@
         y += DAY_H * S;
         g.items.forEach((m, ii) => {
           if (ii) y += ITEM_GAP * S;
-          drawListItem(ctx, m, x0, y, colW, ITEM_H * S, th, S, u, opt);
+          drawListItem(ctx, m, x0, y, colW, ITEM_H * S, th, S, u, opt, TS);
           y += ITEM_H * S;
         });
       });
     });
   }
 
-  function drawListItem(ctx, m, x, y, w, h, th, S, u, opt) {
+  function drawListItem(ctx, m, x, y, w, h, th, S0, u, opt, TS) {
+    const S = S0 * (TS || 1); // font/detail scale; card size comes from h and w
     const info = blockInfo(m, opt);
     const solid = th.style === 'solid';
     const r = 16 * S;
@@ -559,7 +569,7 @@
 
     ctx.save();
     rr(ctx, x, y, w, h, r); ctx.clip();
-    const timeW = 150 * S;
+    const timeW = 158 * S;
     // time column tinted with the subject colour
     ctx.fillStyle = solid ? m.color : rgba(m.color, 0.12);
     ctx.fillRect(x, y, timeW, h);
@@ -571,28 +581,28 @@
     const tcol = solid ? '#ffffff' : m.color;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const fmt = (t) => (opt.h24 ? P.hhmm(t) : P.fmtTime(t));
-    setFont(ctx, 800, 25 * S); ctx.fillStyle = tcol;
-    ctx.fillText(fmt(m.start), x + timeW / 2, y + h / 2 - 15 * S);
-    setFont(ctx, 600, 20 * S); ctx.fillStyle = solid ? 'rgba(255,255,255,0.8)' : rgba(m.color, 0.85);
-    ctx.fillText(fmt(m.end), x + timeW / 2, y + h / 2 + 17 * S);
+    setFont(ctx, 800, 28 * S); ctx.fillStyle = tcol;
+    ctx.fillText(fmt(m.start), x + timeW / 2, y + h / 2 - 16 * S);
+    setFont(ctx, 600, 23 * S); ctx.fillStyle = solid ? 'rgba(255,255,255,0.85)' : rgba(m.color, 0.9);
+    ctx.fillText(fmt(m.end), x + timeW / 2, y + h / 2 + 19 * S);
 
     const txt = solid ? '#ffffff' : '#121845';
     const soft = solid ? 'rgba(255,255,255,0.75)' : 'rgba(18,24,69,0.7)';
-    const tx = x + timeW + 24 * S;
-    const maxW = w - timeW - 40 * S;
+    const tx = x + timeW + 22 * S;
+    const maxW = w - timeW - 36 * S;
     ctx.textAlign = 'left';
 
-    let nfs = 31 * S;
+    let nfs = 34 * S;
     setFont(ctx, 800, nfs, HEAD);
-    while (ctx.measureText(info.name).width > maxW && nfs > 23 * S) { nfs -= S; setFont(ctx, 800, nfs, HEAD); }
+    while (ctx.measureText(info.name).width > maxW && nfs > 24 * S) { nfs -= S; setFont(ctx, 800, nfs, HEAD); }
     ctx.fillStyle = txt; ctx.textBaseline = 'alphabetic';
-    const nameY = y + h / 2 - 6 * S;
+    const nameY = y + h / 2 - 5 * S;
     ctx.fillText(ellipsize(ctx, info.name, maxW), tx, nameY);
 
     // meta row: [MODE] room · prof · code
-    const yMid = y + h / 2 + 26 * S;
+    const yMid = y + h / 2 + 28 * S;
     const mc = modeColors(th, m.color, m.online);
-    let cx = tx + pill(ctx, tx, yMid, m.online ? 'ONLINE' : 'F2F', 16 * S, mc.bg, mc.fg) + 12 * S;
+    let cx = tx + pill(ctx, tx, yMid, m.online ? 'ONLINE' : 'F2F', 17 * S, mc.bg, mc.fg) + 12 * S;
     const bits = [];
     if (info.room) bits.push({ t: info.room });
     bits.push({ t: info.prof, prof: true, missing: info.profMissing });
@@ -601,11 +611,11 @@
     bits.forEach((bit, i) => {
       if (cx > tx + maxW - 30 * S) return;
       if (i) {
-        setFont(ctx, 600, 21 * S); ctx.fillStyle = soft;
+        setFont(ctx, 600, 23 * S); ctx.fillStyle = soft;
         ctx.fillText('·', cx, yMid); cx += 16 * S;
       }
-      if (bit.prof) { personIcon(ctx, cx, yMid, 20 * S, soft); cx += 26 * S; }
-      setFont(ctx, bit.missing ? '500 italic' : 600, 21 * S); ctx.fillStyle = soft;
+      if (bit.prof) { personIcon(ctx, cx, yMid, 22 * S, soft); cx += 28 * S; }
+      setFont(ctx, bit.missing ? '500 italic' : 600, 23 * S); ctx.fillStyle = soft;
       const t = ellipsize(ctx, bit.t, tx + maxW - cx);
       ctx.fillText(t, cx, yMid);
       cx += ctx.measureText(t).width + 12 * S;
@@ -648,7 +658,7 @@
     hits = [];
 
     drawBackground(ctx, W, H, th, u);
-    const pad = Math.round(44 * u);
+    const pad = Math.round(36 * u);
     const top = opt.wallpaper ? Math.round(H * 0.25) : Math.round(60 * u);
     const bottom = opt.wallpaper ? Math.round(H * 0.075) : Math.round(36 * u);
     const footerH = Math.round(58 * u);

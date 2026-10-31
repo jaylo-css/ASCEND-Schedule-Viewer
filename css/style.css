@@ -254,8 +254,9 @@ input:focus, select:focus { outline: none; border-color: var(--focus); box-shado
 .check-bar .btn { flex: none; }
 
 /* preview */
-.preview-wrap { display: grid; place-items: center; background: var(--field); border-radius: 16px; padding: 12px; }
-#preview { cursor: pointer; display: block; width: auto; height: auto; max-height: 64vh; max-width: 100%; border-radius: 12px; box-shadow: 0 10px 30px rgba(10, 15, 50, 0.3); }
+.preview-wrap { position: relative; display: grid; place-items: center; width: 100%; background: var(--field); border: 0; border-radius: 16px; padding: 12px; cursor: zoom-in; }
+.expand-badge { position: absolute; right: 20px; bottom: 20px; display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: rgba(10, 14, 45, 0.78); color: #fff; font-size: 12.5px; font-weight: 700; pointer-events: none; }
+#preview { display: block; width: auto; height: auto; max-height: 64vh; max-width: 100%; border-radius: 12px; box-shadow: 0 10px 30px rgba(10, 15, 50, 0.3); }
 .controls { display: grid; gap: 10px; margin-top: 12px; }
 .control-row { display: flex; gap: 10px; align-items: center; }
 .control-row select { flex: 1; min-width: 0; }
@@ -404,3 +405,31 @@ input:focus, select:focus { outline: none; border-color: var(--focus); box-shado
 /* highlight the subject card opened by tapping the image */
 .subj.flash { animation: flash 1.2s ease-out; }
 @keyframes flash { 0%, 30% { box-shadow: 0 0 0 3px var(--gold); } 100% { box-shadow: 0 0 0 0 transparent; } }
+
+/* text size slider */
+.text-size { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--field-border); border-radius: 12px; background: var(--field); }
+.ts-label { font-weight: 700; font-size: 14px; white-space: nowrap; }
+.ts-a { font-weight: 800; color: var(--text-2); line-height: 1; }
+.ts-a.small { font-size: 12px; } .ts-a.big { font-size: 20px; }
+.text-size input[type="range"] { flex: 1; min-width: 0; accent-color: var(--blue); height: 28px; }
+.text-size output { min-width: 44px; text-align: right; font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+
+/* full-screen image viewer */
+.viewer { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: rgba(5, 8, 30, 0.97); color: #fff; display: none; flex-direction: column; }
+.viewer[open] { display: flex; }
+.viewer::backdrop { background: rgba(5, 8, 30, 0.9); }
+.viewer-bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; padding-top: max(10px, env(safe-area-inset-top)); flex: none; }
+.viewer-hint { flex: 1; min-width: 0; font-size: 13.5px; opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vbtn { flex: none; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: #fff; border-radius: 999px; padding: 8px 14px; font-weight: 700; font-size: 14px; cursor: pointer; }
+.vbtn:hover { background: rgba(255,255,255,0.2); }
+.vbtn.primary { background: var(--blue); border-color: transparent; }
+.vbtn.icon { width: 38px; height: 38px; padding: 0; }
+.viewer-scroll { flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center; padding: 0 12px 12px; overscroll-behavior: contain; }
+#viewer-img { display: block; max-width: 100%; max-height: calc(100dvh - 76px); border-radius: 10px; cursor: zoom-in; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+.viewer.zoomed .viewer-scroll { place-items: start center; }
+.viewer.zoomed #viewer-img { max-width: none; max-height: none; cursor: zoom-out; }
+@media (max-width: 420px) { .vbtn { padding: 8px 11px; font-size: 13px; } .viewer-hint { font-size: 12.5px; } }
+.controls { grid-template-columns: minmax(0, 1fr); }
+.controls > * { min-width: 0; }
+.text-size input[type="range"] { width: 100%; min-width: 60px; }
+@media (max-width: 380px) { .text-size { gap: 8px; padding: 8px 10px; } .ts-label { font-size: 13px; } .ts-a.small { display: none; } }
