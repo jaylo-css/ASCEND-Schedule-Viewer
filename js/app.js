@@ -8,6 +8,7 @@
   const MAX_FILES = 6;
   const PREFS_KEY = 'ascend-sv-prefs';
   const KEY_PREFIX = 'ascend-sv-key-';
+  const TUTORIAL_OFF_KEY = 'ascend-sv-tutorial-off';
   const DEFAULT_PROGRAM = 'BS Computer Engineering';
 
   // localStorage can throw (private mode, blocked storage) — everything still works without it.
@@ -18,6 +19,7 @@
   };
 
   const isPhone = window.matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 700;
+  const wide = window.matchMedia('(min-width: 1100px)');
 
   const DEFAULT_OPTS = {
     layout: 'grid', theme: 'midnight', size: isPhone ? 'device' : '1080x2400', customW: 1080, customH: 2400,
@@ -33,7 +35,7 @@
   } catch (e) { /* ignore bad prefs */ }
   const savePrefs = () => store.set(PREFS_KEY, JSON.stringify(prefs));
 
-  const state = { files: [], data: null, source: '', keys: {}, busy: false, syGuessed: false };
+  const state = { files: [], data: null, source: '', keys: {}, busy: false, syGuessed: false, open: new Set() };
 
   let uidN = 0;
   const uid = () => 'i' + (++uidN).toString(36) + Math.random().toString(36).slice(2, 6);
@@ -52,6 +54,104 @@
     toastTimer = setTimeout(() => { t.hidden = true; }, ms || 3500);
   }
 
+  /* ------------------------------------------------------------ modals */
+  function openModal(id) {
+    const d = document.getElementById(id);
+    if (!d) return;
+    if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
+  }
+  function closeModal(d) { if (d.close) d.close(); else d.removeAttribute('open'); }
+  document.addEventListener('click', (e) => {
+    const opener = e.target.closest('[data-modal]');
+    if (opener) { openModal('modal-' + opener.dataset.modal); return; }
+    const closer = e.target.closest('[data-close]');
+    if (closer) closeModal(closer.closest('dialog'));
+  });
+  // Click on the dimmed backdrop closes info modals.
+  $$('dialog.modal:not(.tutorial)').forEach((d) => d.addEventListener('click', (e) => { if (e.target === d) closeModal(d); }));
+
+  /* ---------------------------------------------------------- tutorial */
+  const TUT = [
+    { title: 'Open your schedule', body: 'In the student portal, open My Schedule Viewer and tap the list button (☰). Or download your COR as a PDF.' },
+    { title: 'Hide personal info', body: 'Crop or cover your name, student number and photo. Only the subject table is needed.' },
+    { title: 'Upload it here', body: 'Tap Upload schedule and choose your screenshot or PDF. Then tap Read my schedule.' },
+    { title: 'Check & download', body: 'Fix anything that looks wrong, then download your schedule as a phone wallpaper.' },
+  ];
+  const tut = $('#tutorial');
+  let tutIdx = 0;
+  function showSlide(i) {
+    tutIdx = Math.max(0, Math.min(TUT.length - 1, i));
+    $$('.tut-slide', tut).forEach((s, k) => { s.classList.toggle('active', k === tutIdx); s.classList.toggle('past', k < tutIdx); });
+    $$('#tut-dots i').forEach((d, k) => d.classList.toggle('on', k === tutIdx));
+    $('#tut-step').textContent = `Step ${tutIdx + 1} of ${TUT.length}`;
+    $('#tut-title').textContent = TUT[tutIdx].title;
+    $('#tut-body').textContent = TUT[tutIdx].body;
+    $('[data-tut="back"]', tut).style.visibility = tutIdx ? 'visible' : 'hidden';
+    $('[data-tut="next"]', tut).textContent = tutIdx === TUT.length - 1 ? "Let's go" : 'Next';
+  }
+  function openTutorial() {
+    $('#tut-off').checked = store.get(TUTORIAL_OFF_KEY) === '1';
+    showSlide(0);
+    openModal('tutorial');
+  }
+  function closeTutorial(goUpload) {
+    if ($('#tut-off').checked) store.set(TUTORIAL_OFF_KEY, '1'); else store.del(TUTORIAL_OFF_KEY);
+    closeModal(tut);
+    if (goUpload && !$('#start').hidden) {
+      const dzEl = $('#dropzone');
+      dzEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      dzEl.classList.remove('attention'); void dzEl.offsetWidth; dzEl.classList.add('attention');
+    }
+  }
+  tut.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tut]');
+    if (!b) return;
+    if (b.dataset.tut === 'next') { if (tutIdx === TUT.length - 1) closeTutorial(true); else showSlide(tutIdx + 1); }
+    else if (b.dataset.tut === 'back') showSlide(tutIdx - 1);
+    else closeTutorial(false);
+  });
+  tut.addEventListener('cancel', (e) => { e.preventDefault(); closeTutorial(false); }); // Esc key
+  tut.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight') showSlide(tutIdx + 1);
+    if (e.key === 'ArrowLeft') showSlide(tutIdx - 1);
+  });
+  // swipe between slides on touch screens
+  let touchX = null;
+  $('.tut-stage', tut).addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+  $('.tut-stage', tut).addEventListener('touchend', (e) => {
+    if (touchX == null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 40) showSlide(tutIdx + (dx < 0 ? 1 : -1));
+    touchX = null;
+  });
+  $('#btn-help').addEventListener('click', openTutorial);
+
+  /* ------------------------------------------------------------- views */
+  function showView(name) {
+    $('#start').hidden = name !== 'start';
+    $('#workspace').hidden = name !== 'workspace';
+    window.scrollTo({ top: 0 });
+  }
+  function setTab(tab) {
+    $('#ws-grid').classList.toggle('show-edit', tab === 'edit');
+    $('#ws-grid').classList.toggle('show-preview', tab === 'preview');
+    $$('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+    if (tab === 'preview') drawPreview();
+    if (!wide.matches) window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  $$('[data-tab]').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+  $('#btn-to-preview').addEventListener('click', () => setTab('preview'));
+  $('#btn-back').addEventListener('click', () => showView('start'));
+
+  const menu = $('#menu'), menuBtn = $('#btn-menu');
+  menuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menu.hidden = !menu.hidden;
+    menuBtn.setAttribute('aria-expanded', String(!menu.hidden));
+  });
+  document.addEventListener('click', (e) => { if (!menu.hidden && !e.target.closest('.menu-wrap')) { menu.hidden = true; menuBtn.setAttribute('aria-expanded', 'false'); } });
+  menu.addEventListener('click', () => { setTimeout(() => { menu.hidden = true; }, 0); });
+
   /* ------------------------------------------------------------- sizes */
   function deviceSize() {
     const dpr = window.devicePixelRatio || 1;
@@ -62,18 +162,15 @@
     return { w, h };
   }
   const SIZES = [
-    { id: '1080x2400', label: 'Android phone · 9:20 (1080 × 2400)' },
-    { id: '1080x2340', label: 'iPhone / 9:19.5 (1080 × 2340)' },
-    { id: '1080x1920', label: 'Older phone or Story · 9:16 (1080 × 1920)' },
-    { id: '1440x3200', label: 'QHD Android · 9:20 (1440 × 3200)' },
-    { id: '1080x1350', label: 'Portrait post · 4:5 (1080 × 1350)' },
-    { id: '1920x1080', label: 'Laptop / desktop · 16:9 (1920 × 1080)' },
+    { id: '1080x2400', label: 'Android phone (9:20)' },
+    { id: '1080x2340', label: 'iPhone (9:19.5)' },
+    { id: '1080x1920', label: 'Older phone / Story (9:16)' },
+    { id: '1440x3200', label: 'QHD Android (9:20)' },
+    { id: '1080x1350', label: 'Portrait post (4:5)' },
+    { id: '1920x1080', label: 'Laptop / desktop (16:9)' },
     { id: 'custom', label: 'Custom size…' },
   ];
-  if (isPhone) {
-    const d = deviceSize();
-    SIZES.unshift({ id: 'device', label: `Fit this phone exactly (${d.w} × ${d.h})` });
-  }
+  if (isPhone) SIZES.unshift({ id: 'device', label: 'Fit this phone' });
   function currentSize() {
     const id = prefs.opts.size;
     if (id === 'device') return deviceSize();
@@ -107,8 +204,6 @@
   const fileInput = $('#file-input');
   const dz = $('#dropzone');
 
-  function fmtBytes(n) { return n > 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' KB'; }
-
   function addFiles(list) {
     const all = Array.from(list || []);
     const ok = all.filter((f) => /^image\//.test(f.type) || X.isPdf(f));
@@ -127,9 +222,10 @@
     $('#file-list').innerHTML = state.files.map((it) => `
       <li class="file-item">
         ${it.thumb ? `<img src="${it.thumb}" alt="">` : '<span class="thumb-ph"></span>'}
-        <span class="fname">${esc(it.file.name)}<span class="fsize">${X.isPdf(it.file) ? 'PDF' : 'Image'} · ${fmtBytes(it.file.size)}</span></span>
+        <span class="fname">${esc(it.file.name)}</span>
         <button type="button" class="icon-btn danger" data-remove="${it.id}" aria-label="Remove ${esc(it.file.name)}">✕</button>
       </li>`).join('');
+    $('.dz-title').textContent = state.files.length ? 'Add another file' : 'Upload schedule';
   }
 
   fileInput.addEventListener('change', () => { addFiles(fileInput.files); fileInput.value = ''; });
@@ -144,7 +240,7 @@
   dz.addEventListener('drop', (e) => addFiles(e.dataTransfer.files));
   // Paste a screenshot straight from the clipboard.
   document.addEventListener('paste', (e) => {
-    if (e.target.closest && e.target.closest('input, textarea')) return;
+    if ($('#start').hidden || (e.target.closest && e.target.closest('input, textarea'))) return;
     const files = Array.from((e.clipboardData && e.clipboardData.files) || []);
     if (files.length) { addFiles(files); toast('Screenshot added from clipboard.'); }
   });
@@ -152,16 +248,16 @@
   /* -------------------------------------------------------- read setup */
   function setMode(mode) {
     prefs.mode = mode; savePrefs();
-    $$('.mode-opt').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.mode === mode)));
+    $$('#mode-seg [data-mode]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.mode === mode)));
     $('#ai-settings').hidden = mode !== 'ai';
     $('#offline-settings').hidden = mode !== 'offline';
     updateReadButton();
   }
-  $$('.mode-opt').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  $$('#mode-seg [data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
 
   function renderProviders() {
     $('#provider-seg').innerHTML = Object.entries(AI.PROVIDERS).map(([id, p]) =>
-      `<button type="button" role="radio" data-prov="${id}" aria-checked="${id === prefs.provider}">${esc(p.label)}${p.badge === 'Free tier' ? '<span class="mini">FREE</span>' : ''}</button>`).join('');
+      `<button type="button" role="radio" data-prov="${id}" aria-checked="${id === prefs.provider}">${esc(p.label.replace(/ \(.*\)/, ''))}${p.badge === 'Free tier' ? '<span class="mini">FREE</span>' : ''}</button>`).join('');
   }
   function setProvider(id) {
     if (!AI.PROVIDERS[id]) id = 'gemini';
@@ -174,8 +270,11 @@
     $('#remember-key').checked = !!remembered;
     $('#btn-forget-key').hidden = !remembered;
     $('#ai-model').value = prefs.models[id] || p.defaultModel;
-    $('#key-hint').innerHTML = `${esc(p.keyHint)} <a href="${p.keyUrl}" target="_blank" rel="noopener">Get a ${esc(p.label.split(' ')[0])} key →</a>`;
-    $('#ai-note').innerHTML = `🔒 Your key and images go <b>only to ${esc(p.label)}</b>, straight from this browser. ASCEND never sees them.`;
+    $('#provider-name').textContent = p.label.replace(/ \(.*\)/, '');
+    const link = $('#key-link');
+    link.href = p.keyUrl;
+    link.textContent = id === 'gemini' ? 'Get a free key' : 'Get a key';
+    $('#api-key').placeholder = `Paste your ${p.label.split(' ')[0]} API key`;
     updateReadButton();
   }
   $('#provider-seg').addEventListener('click', (e) => { const b = e.target.closest('[data-prov]'); if (b) setProvider(b.dataset.prov); });
@@ -213,12 +312,12 @@
   });
 
   function updateReadButton() {
-    const btn = $('#btn-read'), hint = $('#read-hint');
     let msg = '';
     if (!state.files.length) msg = 'Upload a file first.';
-    else if (prefs.mode === 'ai' && !state.keys[prefs.provider]) msg = 'Paste your API key, or switch to Offline mode.';
-    btn.disabled = !!msg || state.busy;
-    hint.textContent = state.busy ? '' : msg;
+    else if (prefs.mode === 'ai' && !state.keys[prefs.provider]) msg = 'Paste your API key, or switch to Offline.';
+    $('#btn-read').disabled = !!msg || state.busy;
+    $('#read-hint').textContent = state.busy ? '' : msg;
+    $('#read-hint').hidden = !msg || state.busy;
   }
 
   /* -------------------------------------------------------------- read */
@@ -233,9 +332,9 @@
   function showError(msg, actions) {
     const box = $('#read-error');
     const btns = [];
-    if (actions.offline) btns.push('<button type="button" class="link-btn" data-err="offline">Try Offline mode</button>');
+    if (actions.offline) btns.push('<button type="button" class="link-btn" data-err="offline">Try Offline</button>');
     if (actions.ai) btns.push('<button type="button" class="link-btn" data-err="ai">Try AI mode</button>');
-    btns.push('<button type="button" class="link-btn" data-err="manual">Type it in manually</button>');
+    btns.push('<button type="button" class="link-btn" data-err="manual">Type it in</button>');
     box.innerHTML = `<p style="margin:0 0 6px">${esc(msg)}</p>${btns.join(' · ')}`;
     box.hidden = false;
   }
@@ -259,7 +358,7 @@
         const p = AI.PROVIDERS[prefs.provider];
         setProgress('Preparing your images…', null);
         const images = await X.filesForAI(files);
-        setProgress(`${p.label} is reading your schedule… this can take up to a minute.`, null);
+        setProgress(`${p.label.replace(/ \(.*\)/, '')} is reading your schedule…`, null);
         result = await AI.extract({ provider: prefs.provider, key: state.keys[prefs.provider], model: $('#ai-model').value, images });
       } else {
         setProgress('Starting…', 0);
@@ -268,8 +367,8 @@
       if (!result.subjects.length) {
         const cal = (result.kinds || []).includes('calendar');
         throw new Error(cal
-          ? "This looks like the calendar view, which Offline mode can't read. Upload a List view screenshot or your COR PDF, or use AI mode."
-          : 'No subjects were found. Make sure the whole subject table is visible and sharp, or try the other mode.');
+          ? "This looks like the calendar view, which Offline can't read. Upload a List view screenshot or COR PDF, or use AI mode."
+          : 'No subjects found. Make sure the whole subject table is visible and sharp, or try the other mode.');
       }
       loadData(buildData(result), prefs.mode);
     } catch (e) {
@@ -328,16 +427,19 @@
     };
   }
 
+  const meetingOk = (m) => m.day && m.start != null && m.end != null && m.end > m.start;
+
   function loadData(data, source) {
     state.data = data;
     state.source = source;
-    $('#workspace').hidden = false;
+    // Open only the subjects that need attention; everything else stays a tidy one-line summary.
+    state.open = new Set(data.subjects.filter((s) => !s.meetings.length || !s.meetings.every(meetingOk)).map((s) => s.id));
     renderMeta();
     renderSubjects();
     renderNotices();
+    showView('workspace');
+    setTab('edit');
     drawPreview();
-    updateFab();
-    setTimeout(() => $('#workspace').scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
   }
 
   function startManual() {
@@ -363,7 +465,7 @@
       ],
     };
     loadData(buildData(sample), 'sample');
-    toast('Loaded a sample schedule (from a COR with no professors yet).');
+    toast('Sample loaded (a COR with no professors yet).');
   });
 
   /* ------------------------------------------------------------ editor */
@@ -383,10 +485,33 @@
 
   const timeVal = (min) => (min == null ? '' : P.hhmm(min));
 
-  function meetingHTML(mt) {
-    const bad = !mt.day || mt.start == null || mt.end == null || mt.end <= mt.start;
+  // One-line summary shown on the collapsed card, e.g. "Mon/Thu 12:00–2:00 PM".
+  function summaryHTML(s) {
+    const groups = [];
+    s.meetings.filter(meetingOk).forEach((m) => {
+      const g = groups.find((x) => x.start === m.start && x.end === m.end);
+      if (g) g.days.push(m.day); else groups.push({ start: m.start, end: m.end, days: [m.day] });
+    });
+    const when = groups.map((g) => `${g.days.join('/')} ${P.fmtRange(g.start, g.end)}`).join(' · ') || 'No day/time yet';
+    const online = s.meetings.length && s.meetings.every((m) => m.mode === 'online');
+    const mixed = !online && s.meetings.some((m) => m.mode === 'online');
+    const tags = [];
+    tags.push(`<span class="tagx${online || mixed ? ' online' : ''}">${online ? 'Online' : mixed ? 'F2F + Online' : 'F2F'}</span>`);
+    tags.push(s.prof ? `<span class="tagx">${esc(s.prof)}</span>` : '<span class="tagx warn">No professor</span>');
+    if (!s.meetings.length || !s.meetings.every(meetingOk)) tags.push('<span class="tagx warn">Check time</span>');
     return `
-      <div class="mt${bad ? ' bad' : ''}" data-mid="${mt.id}">
+      <span class="subj-dot" style="background:${esc(s.color)}"></span>
+      <span class="subj-info">
+        <span class="subj-name">${esc(s.short || s.code || 'New subject')}</span>
+        <span class="subj-meta">${esc(when)}</span>
+        <span class="subj-tags">${tags.join('')}</span>
+      </span>
+      <svg class="chev" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg>`;
+  }
+
+  function meetingHTML(mt) {
+    return `
+      <div class="mt${meetingOk(mt) ? '' : ' bad'}" data-mid="${mt.id}">
         <select class="mt-day" data-mf="day" aria-label="Day">
           <option value="">Day…</option>
           ${P.DAYS.map((d) => `<option value="${d}"${mt.day === d ? ' selected' : ''}>${P.DAY_NAMES[d]}</option>`).join('')}
@@ -405,31 +530,47 @@
   }
 
   function subjectHTML(s) {
+    const open = state.open.has(s.id);
     return `
-      <article class="subj" data-sid="${s.id}" style="--c:${esc(s.color)}">
-        <div class="subj-top">
-          <input type="color" class="swatch" data-f="color" value="${esc(s.color)}" aria-label="Subject colour">
-          <input class="in-short" data-f="short" value="${esc(s.short)}" placeholder="Short name shown on the image" aria-label="Short name shown on the image" maxlength="40">
-          <button type="button" class="icon-btn" data-act="regen" title="Re-make the short name from the full title" aria-label="Re-make short name">↻</button>
-          <button type="button" class="icon-btn danger" data-act="del-subj" title="Remove subject" aria-label="Remove subject">✕</button>
-        </div>
-        <div class="subj-fields">
-          <label class="f wide"><span>Full title</span><input data-f="description" value="${esc(s.description)}" placeholder="e.g. SOFTWARE DESIGN - LAB"></label>
-          <label class="f"><span>Code</span><input data-f="code" value="${esc(s.code)}" placeholder="e.g. CPSOFT1L"></label>
-          <label class="f"><span>Section</span><input data-f="section" value="${esc(s.section)}" placeholder="e.g. CPE231"></label>
-          <label class="f wide-sm"><span>Professor (last name)</span><input data-f="prof" value="${esc(s.prof)}" class="${s.prof ? '' : 'missing'}" placeholder="Not assigned yet"></label>
-        </div>
-        <div class="meetings">
-          ${s.meetings.map(meetingHTML).join('')}
-          <button type="button" class="link-btn add-mt" data-act="add-mt">+ Add another class day</button>
+      <article class="subj${open ? ' open' : ''}" data-sid="${s.id}">
+        <button type="button" class="subj-head" data-act="toggle" aria-expanded="${open}">${summaryHTML(s)}</button>
+        <div class="subj-body"${open ? '' : ' hidden'}>
+          <div class="subj-top">
+            <input type="color" class="swatch" data-f="color" value="${esc(s.color)}" aria-label="Subject colour">
+            <label class="f"><span>Name on image</span><input class="in-short" data-f="short" value="${esc(s.short)}" placeholder="Short name" maxlength="40"></label>
+          </div>
+          <div class="subj-fields">
+            <label class="f wide"><span>Professor (last name)</span><input data-f="prof" value="${esc(s.prof)}" class="${s.prof ? '' : 'missing'}" placeholder="Not assigned yet"></label>
+          </div>
+          <div class="meetings">
+            ${s.meetings.map(meetingHTML).join('')}
+          </div>
+          <details class="mini-details">
+            <summary>Full title, code &amp; section</summary>
+            <div class="subj-fields">
+              <label class="f wide"><span>Full title</span><input data-f="description" value="${esc(s.description)}" placeholder="e.g. SOFTWARE DESIGN - LAB"></label>
+              <label class="f"><span>Code</span><input data-f="code" value="${esc(s.code)}" placeholder="CPSOFT1L"></label>
+              <label class="f"><span>Section</span><input data-f="section" value="${esc(s.section)}" placeholder="CPE231"></label>
+            </div>
+          </details>
+          <div class="subj-actions">
+            <button type="button" class="link-btn" data-act="add-mt">+ Add class day</button>
+            <span>
+              <button type="button" class="link-btn" data-act="regen" title="Re-make the short name from the full title">Reset name</button>
+              ·
+              <button type="button" class="link-btn danger" data-act="del-subj">Remove</button>
+            </span>
+          </div>
         </div>
       </article>`;
   }
 
   function renderSubjects() {
     $('#subjects').innerHTML = state.data.subjects.map(subjectHTML).join('') ||
-      '<p class="hint">No subjects yet. Add one below.</p>';
+      '<p class="hint center">No subjects yet. Add one below.</p>';
   }
+
+  function refreshSummary(card, s) { $('.subj-head', card).innerHTML = summaryHTML(s); }
 
   function findSubj(el) {
     const card = el.closest('[data-sid]');
@@ -449,7 +590,6 @@
         $('[data-f="short"]', card).value = s.short;
       }
       if (f === 'prof') t.classList.toggle('missing', !t.value.trim());
-      if (f === 'color') card.style.setProperty('--c', t.value);
     } else if (t.dataset.mf) {
       const row = t.closest('[data-mid]');
       const mt = s.meetings.find((m) => m.id === row.dataset.mid);
@@ -461,8 +601,9 @@
         mt.mode = P.isOnlineRoom(mt.room) ? 'online' : 'f2f';
         $('[data-mf="mode"]', row).value = mt.mode;
       }
-      row.classList.toggle('bad', !mt.day || mt.start == null || mt.end == null || mt.end <= mt.start);
+      row.classList.toggle('bad', !meetingOk(mt));
     } else return;
+    refreshSummary(card, s);
     schedulePreview(); scheduleNotices();
   }
   $('#subjects').addEventListener('input', onEdit);
@@ -474,6 +615,14 @@
     const { card, s } = findSubj(b);
     if (!s) return;
     const act = b.dataset.act;
+    if (act === 'toggle') {
+      const open = !state.open.has(s.id);
+      if (open) state.open.add(s.id); else state.open.delete(s.id);
+      card.classList.toggle('open', open);
+      $('.subj-body', card).hidden = !open;
+      b.setAttribute('aria-expanded', String(open));
+      return;
+    }
     if (act === 'del-subj') {
       if (!confirm(`Remove “${s.short || s.code || 'this subject'}”?`)) return;
       state.data.subjects = state.data.subjects.filter((x) => x !== s);
@@ -483,6 +632,7 @@
       s.short = all[state.data.subjects.indexOf(s)] || s.short;
       s.shortAuto = true;
       $('[data-f="short"]', card).value = s.short;
+      refreshSummary(card, s);
     } else if (act === 'add-mt') {
       const last = s.meetings[s.meetings.length - 1];
       s.meetings.push(newMeeting(last ? { start: last.start, end: last.end, room: last.room } : {}));
@@ -501,10 +651,11 @@
   $('#btn-add-subject').addEventListener('click', () => {
     const s = newSubject();
     state.data.subjects.push(s);
+    state.open.add(s.id);
     renderSubjects();
     const card = $(`[data-sid="${s.id}"]`);
     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    $('[data-f="description"]', card).focus();
+    $('[data-f="short"]', card).focus();
     schedulePreview(); scheduleNotices();
   });
 
@@ -512,17 +663,15 @@
   let noticeTimer = 0;
   function scheduleNotices() { clearTimeout(noticeTimer); noticeTimer = setTimeout(renderNotices, 250); }
 
+  // Short, one-line notices only — details live on each subject card.
   function renderNotices() {
     if (!state.data) return;
     const d = state.data, out = [];
-    const nameOf = (s) => esc(s.short || s.code || 'Untitled subject');
-    if (state.source === 'offline') out.push(['warn', '<b>Offline mode can make mistakes.</b> Compare every subject with your COR, especially the days, times, and rooms.']);
-    if (state.source === 'ai') out.push(['info', '<b>Double-check the details.</b> AI is accurate but not perfect.']);
+    const nameOf = (s) => esc(s.short || s.code || 'Untitled');
+    if (state.source === 'offline') out.push(['warn', 'Offline mode can make mistakes. Compare with your COR.']);
     if (!d.subjects.length) out.push(['warn', 'Add at least one subject.']);
-    const noProf = d.subjects.filter((s) => !String(s.prof || '').trim());
-    if (noProf.length) out.push(['info', `<b>${noProf.length} subject${noProf.length > 1 ? 's have' : ' has'} no professor yet.</b> Type the last name in the highlighted box once it's posted. Until then, the image shows “TBA”.`]);
-    const incomplete = d.subjects.filter((s) => !s.meetings.length || s.meetings.some((m) => !m.day || m.start == null || m.end == null || m.end <= m.start));
-    if (incomplete.length) out.push(['warn', `<b>Missing day or time:</b> ${incomplete.map(nameOf).join(', ')}. These won't appear on the image until fixed.`]);
+    const incomplete = d.subjects.filter((s) => !s.meetings.length || !s.meetings.every(meetingOk));
+    if (incomplete.length) out.push(['warn', `Missing day or time: ${incomplete.map(nameOf).join(', ')}.`]);
     const ms = R.flatten(d);
     const seen = new Set();
     ms.forEach((a, i) => ms.slice(i + 1).forEach((b) => {
@@ -530,11 +679,12 @@
         const key = [a.subj.id, b.subj.id, a.day].join();
         if (seen.has(key)) return;
         seen.add(key);
-        out.push(['warn', `<b>Schedule conflict:</b> ${nameOf(a.subj)} and ${nameOf(b.subj)} overlap on ${P.DAY_NAMES[a.day]}.`]);
+        out.push(['warn', `Conflict: ${nameOf(a.subj)} and ${nameOf(b.subj)} overlap on ${P.DAY_NAMES[a.day]}.`]);
       }
     }));
-    if (!d.meta.term) out.push(['info', 'Add the <b>term</b> (e.g. 2nd Term) so it shows on your image.']);
-    if (state.syGuessed && d.meta.schoolYear) out.push(['info', `We filled in the school year as <b>${esc(d.meta.schoolYear)}</b>. Change it if that's wrong.`]);
+    const noProf = d.subjects.filter((s) => !String(s.prof || '').trim()).length;
+    if (noProf) out.push(['info', `${noProf} without a professor. They'll show “TBA” until you add one.`]);
+    if (state.syGuessed && d.meta.schoolYear) out.push(['info', 'School year was guessed. Check it below.']);
     $('#notices').innerHTML = out.map(([k, html]) => `<div class="notice ${k}">${html}</div>`).join('');
   }
 
@@ -590,7 +740,7 @@
       a.href = url; a.download = fileName();
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
-      toast('Image saved! Open it in your Gallery or Photos to set it as your wallpaper.', 5000);
+      toast('Saved! Set it as your wallpaper from your Gallery or Photos.', 5000);
     } catch (e) {
       toast(e.message || 'Download failed.');
     }
@@ -627,7 +777,7 @@
     a.href = url; a.download = 'ASCEND-Schedule.json';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
-    toast('Saved. Open this file here later to keep editing.');
+    toast('Saved. Open it here later to keep editing.');
   });
 
   $('#import-input').addEventListener('change', async (e) => {
@@ -654,30 +804,21 @@
       toast("That file isn't an ASCEND schedule (.json).");
     }
   });
+  // keyboard access for the "Open saved copy" label in the menu
+  $('#menu label').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#import-input').click(); } });
 
   $('#btn-reset').addEventListener('click', () => {
-    if (!confirm('Start over? Your current schedule will be cleared from this page.')) return;
+    if (!confirm('Start over? Your current schedule will be cleared.')) return;
     state.data = null; state.files = []; state.source = '';
     renderFiles(); updateReadButton();
-    $('#workspace').hidden = true;
     $('#read-error').hidden = true;
-    updateFab();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    showView('start');
   });
 
   // Nothing is saved automatically, so warn before leaving with a schedule open.
   window.addEventListener('beforeunload', (e) => {
     if (state.data) { e.preventDefault(); e.returnValue = ''; }
   });
-
-  /* --------------------------------------------- phone preview shortcut */
-  let previewInView = false;
-  const fab = $('#fab-preview');
-  function updateFab() { fab.hidden = !state.data || previewInView; }
-  if ('IntersectionObserver' in window) {
-    new IntersectionObserver((entries) => { previewInView = entries[0].isIntersecting; updateFab(); }, { threshold: 0.15 })
-      .observe($('#step-download'));
-  }
 
   /* -------------------------------------------------------------- init */
   renderProviders();
@@ -686,7 +827,8 @@
   syncOptionControls();
   renderFiles();
   updateReadButton();
+  if (store.get(TUTORIAL_OFF_KEY) !== '1') openTutorial();
 
-  // Expose for quick testing from the console / automated checks.
-  window.SVApp = { state, prefs, loadData, buildData, drawPreview };
+  // Exposed for quick testing from the console / automated checks.
+  window.SVApp = { state, prefs, loadData, buildData, drawPreview, openTutorial };
 })();

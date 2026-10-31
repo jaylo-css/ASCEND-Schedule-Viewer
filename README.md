@@ -6,6 +6,9 @@ It's a **static website**: plain HTML, CSS, and JavaScript with no server, no da
 
 ## Features
 
+- **Animated guide**: a 4-step tutorial (open schedule → hide personal info → upload → check & download) opens on each visit. Students can tick *Don't show this again*, and replay it any time from **Guide** in the header.
+- **Simple screens**: the start screen has only upload, key, and the Read button. Upload tips, privacy details, the AI-vs-Offline explanation, image options, and per-subject fields open from buttons when needed.
+
 - **Two ways to read a schedule**
   - **AI mode**: the student pastes their own API key. Supported providers are Google Gemini (free tier), OpenAI, and Anthropic Claude. It reads every format, including the portal's calendar view.
   - **Offline mode**: no key needed. It reads the PDF text layer directly, or runs on-device OCR (Tesseract) on images. It's less accurate, so the app warns students to double-check. It reads COR PDFs and List-view screenshots, but not the calendar view.
